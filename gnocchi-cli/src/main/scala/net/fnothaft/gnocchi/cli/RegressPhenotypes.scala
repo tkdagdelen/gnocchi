@@ -15,7 +15,6 @@
  */
 package net.fnothaft.gnocchi.cli
 
-import java.io.{ File }
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
@@ -25,15 +24,15 @@ import org.apache.spark.sql.SQLContext
 import org.bdgenomics.adam.rdd.ADAMContext._
 import org.bdgenomics.formats.avro._
 import org.bdgenomics.utils.cli._
-import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
-import scala.math.exp
+import org.kohsuke.args4j.{Argument, Option => Args4jOption}
 
+import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
-import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.functions.{ concat, lit }
-import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
+import org.apache.spark.sql.functions.{concat, lit}
+import net.fnothaft.gnocchi.models.{Association, AuxEncoders, Phenotype}
+import org.apache.hadoop.fs.{FileSystem, Path}
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -125,11 +124,12 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // set up sqlContext
     val sqlContext = SQLContext.getOrCreate(sc)
     import sqlContext.implicits._
+    val fs = FileSystem.get(sc.hadoopConfiguration)
 
-    val absAssociationPath = new File(args.associations).getAbsolutePath
+    val absAssociationPath = fs.getFileStatus(new Path(args.associations)).getPath.toString
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
     parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
-    val parquetFiles = new File(parquetInputDestination)
+    val parquetFiles = new Path(parquetInputDestination)
 
     val vcfPath = args.genotypes
     val posAndIds = GetVariantIds(sc, vcfPath)
@@ -143,11 +143,11 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     //    }
 
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
-    if (!parquetFiles.getAbsoluteFile.exists) {
+    if (!fs.exists(parquetFiles)) {
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
       Vcf2ADAM(cmdLine).run(sc)
     } else if (args.overwrite) {
-      FileUtils.deleteDirectory(parquetFiles)
+      fs.delete(parquetFiles, true)
       val cmdLine: Array[String] = Array[String](vcfPath, parquetInputDestination)
       Vcf2ADAM(cmdLine).run(sc)
     }
@@ -311,9 +311,10 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
                  sc: SparkContext) = {
     // save dataset
     val sqlContext = SQLContext.getOrCreate(sc)
-    val associationsFile = new File(args.associations)
-    if (associationsFile.exists) {
-      FileUtils.deleteDirectory(associationsFile)
+    val fs = FileSystem.get(sc.hadoopConfiguration)
+    val associationsFile = new Path(args.associations)
+    if (fs.exists(associationsFile)) {
+      fs.delete(associationsFile, true)
     }
     if (args.saveAsText) {
       associations.rdd.keyBy(_.logPValue).sortBy(_._1).map(r => "%s, %s, %s"
