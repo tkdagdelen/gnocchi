@@ -180,7 +180,7 @@ trait LogisticSiteRegression extends SiteRegression {
 
       toRet = Association(variant, phenotype, logWaldTests(1), statistics)
     } catch {
-      case error: breeze.linalg.MatrixSingularException => matrixSingular = true
+      case error: org.apache.commons.math3.linear.SingularMatrixException => matrixSingular = true
     }
     if (matrixSingular) {
       val statistics = Map()
