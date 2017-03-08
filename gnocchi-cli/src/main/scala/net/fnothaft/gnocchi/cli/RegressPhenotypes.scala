@@ -100,6 +100,7 @@ class RegressPhenotypesArgs extends Args4jBase {
   //
   //  @Args4jOption(required = false, name = "-mapFile", usage = "Path to PLINK MAP file from which to get Varinat IDs.")
   //  var mapFile: String = null
+
 }
 
 class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSparkCommand[RegressPhenotypesArgs] {
@@ -126,6 +127,9 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // set up sqlContext
     val sqlContext = SQLContext.getOrCreate(sc)
     import sqlContext.implicits._
+
+    val a = args.ploidy
+    println(s"\n\n\n\n\n\n ploidy: $a \n\n\n\n\n\n\n\n")
 
     val absAssociationPath = new File(args.associations).getAbsolutePath
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
@@ -242,7 +246,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       genotypeStates("sampleId"),
       genotypeStates("genotypeState"),
       genotypeStates("missingGenotypes"))
-    println(genoStatesWithNames.take(10).toList)
 
     /*
     For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
@@ -273,6 +276,10 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
     val filteredGenotypeStates =
       GenoDataFrameFilterTimer.time { genotypeStates.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*)) }
+    val postFilter = filteredGenotypeStates.as[GenotypeState].rdd.take(10).toList
+    println("\n\n\n\n\n\n")
+    println(postFilter)
+    println("\n\n\n\n\n\n")
     filteredGenotypeStates.as[GenotypeState]
   }
 
@@ -308,6 +315,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
         phenotypes = LoadPhenotypesWithoutCovariates(args.oneTwo, args.phenotypes, args.phenoName, sc)
       }
     }
+    println(phenotypes.take(10).toList.map(_.value.toList))
+    println("\n\n\n\n\n\n\n\n")
     phenotypes
   }
 

@@ -20,7 +20,6 @@ import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.bdgenomics.adam.models.ReferenceRegion
 import scala.math.log10
 import org.apache.commons.math3.distribution.TDistribution
-import org.apache.spark.SparkContext
 import org.bdgenomics.formats.avro.{ Contig, Variant }
 
 trait LinearSiteRegression extends SiteRegression {
@@ -55,6 +54,11 @@ trait LinearSiteRegression extends SiteRegression {
       x(i) = sample
       y(i) = observations(i)._2(0)
     }
+
+    println("\n\n\n\n")
+    println(x.map(_.toList).toList)
+    println(y.toList)
+    println("\n\n\n\n")
 
     // create linear model
     val ols = new OLSMultipleLinearRegression()
@@ -93,7 +97,9 @@ trait LinearSiteRegression extends SiteRegression {
     //    variant.setStart(locus.start)
     //    variant.setEnd(locus.end)
     //    variant.setAlternateAllele(altAllele)
-    val statistics = Map("rSquared" -> rSquared)
+    val statistics = Map("rSquared" -> rSquared,
+      "weights" -> beta,
+      "intercept" -> beta(0))
     val associationObject = new Association(variant, phenotype, logPValue, statistics)
 
     return associationObject

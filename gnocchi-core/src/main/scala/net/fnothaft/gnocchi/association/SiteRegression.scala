@@ -16,7 +16,6 @@
 package net.fnothaft.gnocchi.association
 
 import net.fnothaft.gnocchi.models.{ Association, GenotypeState, MultipleRegressionDoublePhenotype, Phenotype }
-import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
@@ -33,12 +32,7 @@ trait SiteRegression extends Serializable {
   */
   final def apply[T](rdd: RDD[GenotypeState],
                      phenotypes: RDD[Phenotype[T]]): RDD[Association] = {
-    //    rdd.take(100).foreach(el => println(el))
-    //    phenotypes.take(100).foreach(el => {
-    //      println(el)
-    //      println(el.asInstanceOf[MultipleRegressionDoublePhenotype].value.toList)
-    //    })
-    rdd.keyBy(_.sampleId)
+    val temp = rdd.keyBy(_.sampleId)
       // join together the samples with both genotype and phenotype entry
       .join(phenotypes.keyBy(_.sampleId))
       .map(kvv => {
@@ -59,6 +53,19 @@ trait SiteRegression extends Serializable {
         variant.setAlternateAllele(gs.alt)
         ((variant, pheno.phenotype), p)
       }).groupByKey()
+    val temp2 = temp
+      .map(site => {
+        val ((variant, pheno), observations) = site
+        // build array to regress on, and then regress
+        ((variant, pheno), observations.map(p => {
+          // unpack p
+          val (genotypeState, phenotype) = p
+          // return genotype and phenotype in the correct form
+          (clipOrKeepState(genotypeState), phenotype.toDouble.toList)
+        }).toList)
+      })
+    println(temp2.take(10).toList mkString "\n")
+    temp
       .map(site => {
         val ((variant, pheno), observations) = site
         // build array to regress on, and then regress
@@ -69,6 +76,7 @@ trait SiteRegression extends Serializable {
           (clipOrKeepState(genotypeState), phenotype.toDouble)
         }).toArray, variant, pheno)
       })
+
   }
 
   /**
