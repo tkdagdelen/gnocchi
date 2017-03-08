@@ -4,7 +4,7 @@ from os import remove, close
 import csv
 
 
-""" Takes vcf file and sets all chromosome positions to 5"""
+""" Takes vcf file and removes any sample that has 0 in the position or chromosome field."""
 def fixVCFFile(filename): 
 	fh, output_file = mkstemp()
 	with open(filename) as to_read:
@@ -15,9 +15,9 @@ def fixVCFFile(filename):
 			isfirst = True
 			for row in reader:     # read one row at a time
 				if len(row) >= 2:
-					if not row[0].startswith('#'):#'dbGaP SubjID':     
-						myRow = [5, 5] + list(row[i] for i in range(2,len(row)))  
-						writer.writerow(myRow) # write it
+					if not row[0].startswith('#'):#'dbGaP SubjID':
+						if row[0] != 0 or row[1] != 0:
+						    writer.writerow(row) # write it
 					else: 
 						writer.writerow(row)
 	close(fh)
