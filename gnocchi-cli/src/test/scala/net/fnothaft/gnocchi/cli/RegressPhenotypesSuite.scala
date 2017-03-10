@@ -190,7 +190,10 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val filtered_states = genotypeStates.filter(state => state.sampleId == "sample11")
 
     assert(filtered_states.count() == 0) // we shouldn't have any contigs with sampleid 11 because mind = 0.3
-    assert(genotypeStates.count() == 12) // shouldn't filter out 9_752728_C because it is at 0.1 genotyping failure now
+    // should filter out 13_752731_T due to maf default, shouldn't filter out 9_752728_C because it is at 0.9
+    // genotyping rate after sample11 is removed. this leaves 11 SNPs w/ 10 samples = 110
+    assert(genotypeStates.count() == 110)
+
   }
 
 }

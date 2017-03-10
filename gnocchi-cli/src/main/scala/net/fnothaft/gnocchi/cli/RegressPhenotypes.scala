@@ -88,7 +88,7 @@ class RegressPhenotypesArgs extends Args4jBase {
   var maf = 0.01
 
   @Args4jOption(required = false, name = "-mind", usage = "Missingness per individual threshold. Default value is 0.1.")
-  var mind = 0.1
+  var mind = 1.0
 
   @Args4jOption(required = false, name = "-geno", usage = "Missingness per marker threshold. Default value is 1.")
   var geno = 1.0
@@ -160,7 +160,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       genotypeStates("sampleId"),
       genotypeStates("genotypeState"),
       genotypeStates("missingGenotypes"))
-    println(genoStatesWithNames.take(10).toList)
 
     // mind filter
     genoStatesWithNames.registerTempTable("genotypeStates")
