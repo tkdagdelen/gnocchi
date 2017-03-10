@@ -82,6 +82,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     //Assert that the rsquared is in the right threshold. 
     assert(regressionResult(0).statistics("rSquared") == 1.0, "rSquared = " + regressionResult(0).statistics("rSquared"))
   }
+
   sparkTest("Test full pipeline: 1 snp, 10 samples, 12 samples in phenotype file (10 matches) 1 phenotype, no covar") {
     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("1snp10samples.vcf").getFile
     val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("12samples1Phenotype.txt").getFile
@@ -124,8 +125,6 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("5snps10samples.vcf").getFile
     val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("10samples5Phenotypes2covars.txt").getFile
     val covarFilePath = ClassLoader.getSystemClassLoader.getResource("10samples5Phenotypes2covars.txt").getFile
-    println(genoFilePath)
-    // val destination = "~/Users/Taner/desktop/associations"
     val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -covar -covarFile $covarFilePath -covarNames pheno4,pheno5 -overwriteParquet"
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
@@ -141,9 +140,59 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     }
 
     RegressPhenotypes(cliArgs).logResults(assocs, sc)
-    //Assert that the rsquared is in the right threshold. 
-    //    assert(regressionResult(0).statistics("rSquared") == 0.7681191628941112, "rSquared = " + regressionResult(0).statistics("rSquared"))
+    //Assert that the rsquared is in the right threshold.
     assert(regressionResult(0).statistics("rSquared") == 0.833277921795612, "rSquared = " + regressionResult(0).statistics("rSquared"))
+  }
+
+  sparkTest("Test for RegressPhenotypes.loadGenotypes() method for minor allele frequency filtering") {
+    val genoFilePath = testFile("filteringSamples.vcf")
+    val phenoFilePath = testFile("filteringPhenos.txt")
+    val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -maf 0.01 -overwriteParquet"
+    val cliArgs = cliCall.split(" ").drop(2)
+    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
+
+    val filtered_states = genotypeStates.filter(state => state.contig == "13_752731_T")
+
+    assert(filtered_states.count() == 0)
+  }
+
+  sparkTest("Test for RegressPhenotypes.loadGenotypes() method for missingness per individual filtering") {
+    val genoFilePath = testFile("filteringSamples.vcf")
+    val phenoFilePath = testFile("filteringPhenos.txt")
+    val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -mind 0.1 -overwriteParquet"
+    val cliArgs = cliCall.split(" ").drop(2)
+    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
+
+    val filtered_states = genotypeStates.filter(state => state.sampleId == "sample11")
+
+    assert(filtered_states.count() == 0)
+  }
+
+  sparkTest("Test for RegressPhenotypes.loadGenotypes() method for missing genotype filtering") {
+    val genoFilePath = testFile("filteringSamples.vcf")
+    val phenoFilePath = testFile("filteringPhenos.txt")
+    val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -geno 0.1 -overwriteParquet"
+    val cliArgs = cliCall.split(" ").drop(2)
+    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
+
+    val filtered_states = genotypeStates.filter(state => state.contig == "9_752728_C")
+
+    assert(filtered_states.count() == 0)
+  }
+
+  sparkTest("Test for RegressPhenotypes.loadGenotypes() method that mind filter is run before others") {
+    val genoFilePath = testFile("filteringSamples.vcf")
+    val phenoFilePath = testFile("filteringPhenos.txt")
+    val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -mind 0.1 -geno 0.1 -overwriteParquet"
+    val cliArgs = cliCall.split(" ").drop(2)
+    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
+
+    val filtered_states = genotypeStates.filter(state => state.sampleId == "sample11")
+
+    assert(filtered_states.count() == 0) // we shouldn't have any contigs with sampleid 11 because mind = 0.3
+    // should filter out 13_752731_T due to maf default, shouldn't filter out 9_752728_C because it is at 0.9
+    // genotyping rate after sample11 is removed. this leaves 11 SNPs w/ 10 samples = 110
+    assert(genotypeStates.count() == 110)
 
   }
 
@@ -161,5 +210,3 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
   }
 
 }
-// genoFilePath 
-// ./bin/gnocchi-submit regressPhenotypes gnocchi-cli/target/test-classes/5snps10samples.vcf gnocchi-cli/target/test-classes/10samples5Phenotypes2covars.txt ADDITIVE_LINEAR TestDataResults -saveAsText -phenoName pheno1 -covar -covarNames pheno4,pheno5 -overwriteParquet
