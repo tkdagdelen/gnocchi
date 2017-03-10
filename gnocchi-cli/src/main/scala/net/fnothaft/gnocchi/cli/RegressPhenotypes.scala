@@ -96,7 +96,7 @@ class RegressPhenotypesArgs extends Args4jBase {
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
 
-  @Args4jOption(required = false, name = "-write_missing_pheno", usage = "Write missing phenotypes to the location supplied.")
+  @Args4jOption(required = false, name = "-writeMissingPheno", usage = "Write missing phenotypes to the location supplied.")
   var writeMissingPheno: String = null
 
   //
@@ -109,9 +109,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
   val companion = RegressPhenotypes
 
   def run(sc: SparkContext) {
-    val a = args.oneTwo
-    //    println(s"\n\n\n\n\n\n oneTwo: $a \n\n\n\n\n\n\n\n")
-
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
 
