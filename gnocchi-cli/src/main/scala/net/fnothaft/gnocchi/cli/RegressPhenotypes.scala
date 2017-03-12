@@ -32,7 +32,7 @@ import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.functions.{ concat, lit }
+import org.apache.spark.sql.functions.{ concat, lit, sum, count, when }
 import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
 
 object RegressPhenotypes extends BDGCommandCompanion {
@@ -84,17 +84,21 @@ class RegressPhenotypesArgs extends Args4jBase {
   @Args4jOption(required = false, name = "-overwriteParquet", usage = "Overwrite parquet file that was created in the vcf conversion.")
   var overwrite = false
 
-  @Args4jOption(required = false, name = "-maf", usage = "Missingness per individual threshold. Default value is 0.01.")
+  @Args4jOption(required = false, name = "-maf", usage = "Allele frequency threshold. Default value is 0.01.")
   var maf = 0.01
 
-  @Args4jOption(required = false, name = "-mind", usage = "Missingness per marker threshold. Default value is 0.1.")
-  var mind = 0.1
+  @Args4jOption(required = false, name = "-mind", usage = "Missingness per individual threshold. Default value is 0.1.")
+  var mind = 1.0
 
-  @Args4jOption(required = false, name = "-geno", usage = "Allele frequency threshold. Default value is 0.")
-  var geno = 0
+  @Args4jOption(required = false, name = "-geno", usage = "Missingness per marker threshold. Default value is 1.")
+  var geno = 1.0
 
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
+
+  @Args4jOption(required = false, name = "-writeMissingPheno", usage = "Write missing phenotypes to the location supplied.")
+  var writeMissingPheno: String = null
+
   //
   //  @Args4jOption(required = false, name = "-mapFile", usage = "Path to PLINK MAP file from which to get Varinat IDs.")
   //  var mapFile: String = null
@@ -105,9 +109,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
   val companion = RegressPhenotypes
 
   def run(sc: SparkContext) {
-    val a = args.oneTwo
-    //    println(s"\n\n\n\n\n\n oneTwo: $a \n\n\n\n\n\n\n\n")
-
     // Load in genotype data
     val genotypeStates = loadGenotypes(sc)
 
@@ -126,9 +127,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val sqlContext = SQLContext.getOrCreate(sc)
     import sqlContext.implicits._
 
-    val a = args.ploidy
-    println(s"\n\n\n\n\n\n ploidy: $a \n\n\n\n\n\n\n\n")
-
     val absAssociationPath = new File(args.associations).getAbsolutePath
     var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
     parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
@@ -136,14 +134,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     val vcfPath = args.genotypes
     val posAndIds = GetVariantIds(sc, vcfPath)
-    //    if (args.getIds) {
-    //      val mapPath = args.mapFile
-    //      val oldName = new File(args.genotypes).getAbsolutePath.split("/").reverse(0)
-    //      val newVCFPath = new File(args.genotypes).getAbsolutePath.split("/").reverse.drop(1).reverse.mkString("/") + "withIds_" + oldName
-    //      val outpath = newVCFPath
-    //      GetVariantIds(sc, vcfPath)
-    //      vcfPath = outpath
-    //    }
 
     // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
     if (!parquetFiles.getAbsoluteFile.exists) {
@@ -155,71 +145,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       Vcf2ADAM(cmdLine).run(sc)
     }
 
-    // Check for the genotypes file first.
-    // val genoFile = new File(args.genotypes)
-    // assert(genoFile.exists, "Path to genotypes VCF file is incorrect or the file is missing.")
-    //    val absAssociationsPath = args.associations
-    //    val hdfs = FileSystem.get(sc.hadoopConfiguration)
-    //    val parquetInputDestination = absAssociationsPath.toString.split("/").reverse.drop(1).reverse.mkString("/") + "/parquetFiles/"
-    //    val parquetPath = new Path(parquetInputDestination)
-    //    val genoPath = new Path(args.genotypes)
-    //    if (!hdfs.exists(genoPath)) {
-    //      throw new FileNotFoundException(s"Could not find filesystem for ${args.genotypes} with Hadoop configuration ${sc.hadoopConfiguration}")
-    //    }
-    //
-    //    // val absAssociationPath = new Path(args.associations)
-    //    // val fs =
-    //    //   Option(absAssociationPath.getFileSystem(sc.hadoopConfiguration))
-    //    //     .getOrElse(throw new FileNotFoundException(
-    //    //       s"Couldn't find filesystem for ${absAssociationPath.toUri} with Hadoop configuration ${sc.hadoopConfiguration}"))
-    //    // var parquetInputDestination = absAssociationPath.toString.split("/").reverse.drop(1).reverse.mkString("/") + "/parquetFiles/"
-    //    // val parquetFiles = new File(parquetInputDestination)
-    //
-    //    // check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet using vcf2adam.
-    //    if (!hdfs.exists(parquetPath)) {
-    //      val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
-    //      Vcf2ADAM(cmdLine).run(sc)
-    //    } else if (args.overwrite) {
-    //      hdfs.delete(parquetPath, true)
-    //      //      FileUtils.deleteDirectory(parquetFiles)
-    //      val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
-    //      Vcf2ADAM(cmdLine).run(sc)
-    //    }
-
-    // // println(args.associations)
-    // val absAssociationPath = args.associations //new File(args.associations) //.getAbsolutePath()
-    // println(absAssociationPath)
-    // // println(absAssociationPath)
-    // // var parquetInputDestination = absAssociationPath.split("/").reverse.drop(1).reverse.mkString("/")
-    // var parquetInputDestination = absAssociationPath + "/parquetFiles/"
-    // println(parquetInputDestination)
-    // // println(parquetInputDestination)
-    // // parquetInputDestination = parquetInputDestination + "/parquetInputFiles/"
-    // // println(parquetInputDestination)
-    // val parquetFiles = new File(parquetInputDestination)
-    // println(parquetInputDestination)
-    // println(parquetFiles.exists)
-    // println(parquetFiles.getAbsoluteFile)
-    // println(parquetFiles.getAbsoluteFile.exists)
-
-    // println("Genotypes? ")
-    // val a = new File(args.genotypes)
-    // println(a.exists)
-
-    // /* Check for ADAM formatted version of the file specified in genotypes. If it doesn't exist, convert vcf to parquet
-    //  using vcf2adam.
-    // */
-    // // if (!parquetFiles.getAbsoluteFile().exists) {
-    // if (!parquetFiles.exists) {
-    //   val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
-    //   Vcf2ADAM(cmdLine).run(sc)
-    //   println(parquetFiles.getAbsoluteFile().exists)
-    // } else if (args.overwrite) {
-    //   FileUtils.deleteDirectory(parquetFiles)
-    //   val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
-    //   Vcf2ADAM(cmdLine).run(sc)
-    // }
-    //    val parquetInputDestination = args.genotypes
     // read in parquet files
     import sqlContext.implicits._
     //    val genotypes = sqlContext.read.parquet(parquetInputDestination)
@@ -237,36 +162,32 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       genotypeStates("genotypeState"),
       genotypeStates("missingGenotypes"))
 
-    /*
-    For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
-    TODO: Write genotype filters for missingness, MAF, and genotyping rate
-      - To do the filtering, create a genotypeState matrix and calculate which SNPs and Samples need to be filtered out.
-      - Then go back into the Dataset of GenotypeStates and filter out those GenotypeStates.
-    */
-
-    // convert to genotypestatematrix dataframe
-    //
-    // .as[GenotypeState]
-
-    // apply filters: MAF, genotyping rate; (throw out SNPs with low MAF or genotyping rate)
-    // genotypeStates.registerTempTable("genotypes")
-    // val filteredGenotypeStates = sqlContext.sql("SELECT * FROM genotypes WHERE ")
-
-    // apply filters: missingness; (throw out samples missing too many SNPs)
-    // val finalGenotypeStates =
-
     // mind filter
     genoStatesWithNames.registerTempTable("genotypeStates")
 
-    val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    //val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    val mindDF = genoStatesWithNames
+      .groupBy($"sampleId")
+      .agg((sum($"missingGenotypes") / (count($"sampleId") * lit(2))).alias("mind"))
+      .filter($"mind" <= args.mind)
+      .select($"sampleId")
+    val samples = mindDF.collect().map(_(0))
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
-    val filteredGenotypeStates = genoStatesWithNames.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
-    val postFilter = filteredGenotypeStates.as[GenotypeState].rdd.take(10).toList
-    println("\n\n\n\n\n\n")
-    println(postFilter)
-    println("\n\n\n\n\n\n")
+    val sampleFiltered = genoStatesWithNames.filter($"sampleId".isin(samples: _*))
 
-    filteredGenotypeStates.as[GenotypeState]
+    val genoFilterDF = sampleFiltered
+      .groupBy($"contig")
+      .agg(sum($"missingGenotypes").as("missCount"),
+        (count($"sampleId") * lit(2)).as("total"),
+        sum($"genotypeState").as("alleleCount"))
+      .filter(($"missCount" / $"total") <= lit(args.geno) && (lit(1) - $"alleleCount" / ($"total" - $"missCount")) >= lit(args.maf))
+      .select($"contig")
+    val contigs = genoFilterDF.collect().map(_(0))
+    val filteredGenotypeStates = sampleFiltered.filter($"contig".isin(contigs: _*))
+    // Remove all datapoints where both alleles are missing
+    val finalGenotypeStates = filteredGenotypeStates.filter($"missingGenotypes" !== lit(2))
+
+    finalGenotypeStates.as[GenotypeState]
   }
 
   def loadPhenotypes(sc: SparkContext): RDD[Phenotype[Array[Double]]] = {
@@ -290,13 +211,15 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     // Load phenotypes
     var phenotypes: RDD[Phenotype[Array[Double]]] = null
-    if (args.includeCovariates) {
-      phenotypes = LoadPhenotypesWithCovariates(args.oneTwo, args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc)
-    } else {
-      phenotypes = LoadPhenotypesWithoutCovariates(args.oneTwo, args.phenotypes, args.phenoName, sc)
+    var missingPhenoLoc: String = null
+    if (args.writeMissingPheno != null) {
+      missingPhenoLoc = args.writeMissingPheno + "/missingPhenotypes"
     }
-    println(phenotypes.take(10).toList.map(_.value.toList))
-    println("\n\n\n\n\n\n\n\n")
+    if (args.includeCovariates) {
+      phenotypes = LoadPhenotypesWithCovariates(args.oneTwo, args.phenotypes, args.covarFile, args.phenoName, args.covarNames, sc, missingPhenoLoc)
+    } else {
+      phenotypes = LoadPhenotypesWithoutCovariates(args.oneTwo, args.phenotypes, args.phenoName, sc, missingPhenoLoc)
+    }
     phenotypes
   }
 
