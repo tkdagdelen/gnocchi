@@ -30,9 +30,9 @@ import scala.math.exp
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
-import org.apache.spark.sql.functions.{ concat, lit }
-import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 import org.apache.hadoop.fs.{ FileSystem, Path }
+import org.apache.spark.sql.functions.{ concat, lit, sum, count, when }
+import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -83,14 +83,14 @@ class RegressPhenotypesArgs extends Args4jBase {
   @Args4jOption(required = false, name = "-overwriteParquet", usage = "Overwrite parquet file that was created in the vcf conversion.")
   var overwrite = false
 
-  @Args4jOption(required = false, name = "-maf", usage = "Missingness per individual threshold. Default value is 0.01.")
+  @Args4jOption(required = false, name = "-maf", usage = "Allele frequency threshold. Default value is 0.01.")
   var maf = 0.01
 
-  @Args4jOption(required = false, name = "-mind", usage = "Missingness per marker threshold. Default value is 0.1.")
+  @Args4jOption(required = false, name = "-mind", usage = "Missingness per individual threshold. Default value is 0.1.")
   var mind = 0.1
 
-  @Args4jOption(required = false, name = "-geno", usage = "Allele frequency threshold. Default value is 0.")
-  var geno = 0
+  @Args4jOption(required = false, name = "-geno", usage = "Missingness per marker threshold. Default value is 1.")
+  var geno = 1.0
 
   @Args4jOption(required = false, name = "-oneTwo", usage = "If cases are 1 and controls 2 instead of 0 and 1")
   var oneTwo = false
@@ -137,7 +137,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
         val path = status.getPath
         val fname = path.toString.split("/").last
         (path, parquetInputDestination + "/" + fname)
-      }
+      })
     } else {
       val fname = inputPath.toString.split("/").last
       Array((inputPath, parquetInputDestination + "/" + fname))
@@ -178,31 +178,32 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       genoStatesWithNames
     }).reduce(_ unionAll _)
 
-    /*
-    For now, just going to use PLINK's Filtering functionality to create already-filtered vcfs from the BED.
-    TODO: Write genotype filters for missingness, MAF, and genotyping rate
-      - To do the filtering, create a genotypeState matrix and calculate which SNPs and Samples need to be filtered out.
-      - Then go back into the Dataset of GenotypeStates and filter out those GenotypeStates.
-    */
-
-    // convert to genotypestatematrix dataframe
-    //
-    // .as[GenotypeState]
-
-    // apply filters: MAF, genotyping rate; (throw out SNPs with low MAF or genotyping rate)
-    // genotypeStates.registerTempTable("genotypes")
-    // val filteredGenotypeStates = sqlContext.sql("SELECT * FROM genotypes WHERE ")
-
-    // apply filters: missingness; (throw out samples missing too many SNPs)
-    // val finalGenotypeStates =
-
     // mind filter
     genoStatesWithNames.registerTempTable("genotypeStates")
 
-    val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    //val mindDF = sqlContext.sql("SELECT sampleId FROM genotypeStates GROUP BY sampleId HAVING SUM(missingGenotypes)/(COUNT(sampleId)*2) <= %s".format(args.mind))
+    val mindDF = genoStatesWithNames
+      .groupBy($"sampleId")
+      .agg((sum($"missingGenotypes") / (count($"sampleId") * lit(2))).alias("mind"))
+      .filter($"mind" <= args.mind)
+      .select($"sampleId")
+    val samples = mindDF.collect().map(_(0))
     // TODO: Resolve with "IN" sql command once spark2.0 is integrated
-    val filteredGenotypeStates = genoStatesWithNames.filter(($"sampleId").isin(mindDF.collect().map(r => r(0)): _*))
-    filteredGenotypeStates.as[GenotypeState]
+    val sampleFiltered = genoStatesWithNames.filter($"sampleId".isin(samples: _*))
+
+    val genoFilterDF = sampleFiltered
+      .groupBy($"contig")
+      .agg(sum($"missingGenotypes").as("missCount"),
+        (count($"sampleId") * lit(2)).as("total"),
+        sum($"genotypeState").as("alleleCount"))
+      .filter(($"missCount" / $"total") <= lit(args.geno) && (lit(1) - $"alleleCount" / ($"total" - $"missCount")) >= lit(args.maf))
+      .select($"contig")
+    val contigs = genoFilterDF.collect().map(_(0))
+    val filteredGenotypeStates = sampleFiltered.filter($"contig".isin(contigs: _*))
+    // Remove all datapoints where both alleles are missing
+    val finalGenotypeStates = filteredGenotypeStates.filter($"missingGenotypes" !== lit(2))
+
+    finalGenotypeStates.as[GenotypeState]
   }
 
   def loadPhenotypes(sc: SparkContext): RDD[Phenotype[Array[Double]]] = {
