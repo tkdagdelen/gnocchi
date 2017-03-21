@@ -17,13 +17,13 @@
  */
 package org.bdgenomics.gnocchi.sql
 
-import net.fnothaft.gnocchi.models.GenotypeState
 import org.apache.spark.SparkContext._
 import org.apache.spark.mllib.linalg.{ Vector, Vectors }
 import org.apache.spark.mllib.linalg.distributed.{ MatrixEntry, RowMatrix }
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Dataset, Row }
 import org.bdgenomics.formats.avro.Variant
+import org.bdgenomics.gnocchi.models.GenotypeState
 
 object GenotypeStateMatrix extends Serializable {
 

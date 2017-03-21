@@ -18,11 +18,9 @@
 package org.bdgenomics.gnocchi.cli
 
 import java.io.File
-import net.fnothaft.gnocchi.association._
-import net.fnothaft.gnocchi.models.GenotypeState
-import net.fnothaft.gnocchi.sql.GnocchiContext._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.bdgenomics.gnocchi.association.{DominantLinearAssociation, AdditiveLinearAssociation}
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 import org.bdgenomics.adam.cli.Vcf2ADAM
@@ -30,7 +28,6 @@ import org.apache.commons.io.FileUtils
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
 import org.apache.spark.sql.functions.{ concat, lit }
-import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"

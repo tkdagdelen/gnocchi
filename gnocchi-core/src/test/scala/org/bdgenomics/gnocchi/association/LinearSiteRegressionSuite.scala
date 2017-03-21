@@ -17,8 +17,8 @@
  */
 package org.bdgenomics.gnocchi.association
 
-import net.fnothaft.gnocchi.GnocchiFunSuite
 import org.bdgenomics.formats.avro.Variant
+import org.bdgenomics.gnocchi.GnocchiFunSuite
 
 class LinearSiteRegressionSuite extends GnocchiFunSuite {
 

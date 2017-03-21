@@ -17,9 +17,9 @@
  */
 package org.bdgenomics.gnocchi.gnocchiModel
 
-import net.fnothaft.gnocchi.GnocchiFunSuite
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.gnocchi.GnocchiFunSuite
 
 class BuildGnocchiModelSuite extends GnocchiFunSuite {
 

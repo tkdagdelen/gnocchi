@@ -18,10 +18,9 @@
 package org.bdgenomics.gnocchi.gnocchiModel
 
 import breeze.linalg.DenseMatrix
-import net.fnothaft.gnocchi.GnocchiFunSuite
-import net.fnothaft.gnocchi.models.{ AdditiveLinearVariantModel, AdditiveLogisticVariantModel }
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.gnocchi.GnocchiFunSuite
 
 class VariantModelSuite extends GnocchiFunSuite {
 

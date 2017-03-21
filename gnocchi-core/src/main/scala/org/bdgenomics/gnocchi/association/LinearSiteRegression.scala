@@ -17,9 +17,9 @@
  */
 package org.bdgenomics.gnocchi.association
 
-import net.fnothaft.gnocchi.models.Association
 import org.apache.commons.math3.stat.regression.OLSMultipleLinearRegression
 import org.apache.commons.math3.linear.SingularMatrixException
+import org.bdgenomics.gnocchi.models.Association
 
 import scala.math.log10
 import org.apache.commons.math3.distribution.TDistribution
@@ -29,6 +29,7 @@ trait LinearSiteRegression extends SiteRegression {
 
   /**
    * This method will perform linear regression on a single site.
+ *
    * @param observations An array containing tuples in which the first element is the coded genotype. The second is an Array[Double] representing the phenotypes, where the first element in the array is the phenotype to regress and the rest are to be treated as covariates.
    * @param variant The variant that is being regressed.
    * @param phenotype The name of the phenotype being regressed.

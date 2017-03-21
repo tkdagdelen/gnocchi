@@ -18,7 +18,6 @@
 package org.bdgenomics.gnocchi.cli
 
 import java.io.{ FileOutputStream, ObjectOutputStream }
-import net.fnothaft.gnocchi.models.GnocchiModel
 
 object SaveGnocchiModel {
 

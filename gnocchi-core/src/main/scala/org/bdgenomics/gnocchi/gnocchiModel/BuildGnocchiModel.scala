@@ -17,10 +17,10 @@
  */
 package org.bdgenomics.gnocchi.gnocchiModel
 
-import net.fnothaft.gnocchi.models._
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
-import org.bdgenomics.gnocchi.association.{DominantLinearAssociation, AdditiveLinearAssociation}
+import org.bdgenomics.gnocchi.association.{DominantLogisticAssociation, AdditiveLogisticAssociation, DominantLinearAssociation, AdditiveLinearAssociation}
+import org.bdgenomics.gnocchi.models._
 
 trait BuildGnocchiModel {
 

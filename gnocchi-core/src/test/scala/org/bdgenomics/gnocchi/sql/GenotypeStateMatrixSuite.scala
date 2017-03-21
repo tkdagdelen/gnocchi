@@ -17,7 +17,6 @@
  */
 package org.bdgenomics.gnocchi.sql
 
-import net.fnothaft.gnocchi.models.GenotypeState
 import org.scalatest.FunSuite
 import scala.collection.JavaConverters._
 

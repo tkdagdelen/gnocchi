@@ -17,9 +17,10 @@
  */
 package org.bdgenomics.gnocchi.cli
 
-import net.fnothaft.gnocchi.association._
 import java.io.File
 import java.nio.file.Files
+
+import org.bdgenomics.gnocchi.association.LoadPhenotypesWithCovariates
 
 class RegressPhenotypesSuite extends GnocchiFunSuite {
 

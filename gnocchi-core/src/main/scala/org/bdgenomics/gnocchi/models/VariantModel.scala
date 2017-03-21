@@ -17,10 +17,10 @@
  */
 package org.bdgenomics.gnocchi.models
 
-import net.fnothaft.gnocchi.association.{ AdditiveLinearAssociation, AdditiveLogisticAssociation }
-import net.fnothaft.gnocchi.gnocchiModel.{ BuildAdditiveLinearVariantModel, BuildAdditiveLogisticVariantModel }
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.Variant
+import org.bdgenomics.gnocchi.association.AdditiveLinearAssociation
+import org.bdgenomics.gnocchi.gnocchiModel.{BuildAdditiveLogisticVariantModel, BuildAdditiveLinearVariantModel}
 
 trait VariantModel extends Serializable {
   val variantId: String
@@ -102,8 +102,7 @@ trait LinearVariantModel extends VariantModel {
    * deviations that the model already had.
    *
    * @note The mean used in the calculation is the batch mean, not the global mean.
-   *
-   * @param batchSsDeviations The sum of squared deviations of the genotype values
+    * @param batchSsDeviations The sum of squared deviations of the genotype values
    *                              from the batch mean.
    */
   def updateSsDeviations(batchSsDeviations: Double): Unit = {
@@ -117,8 +116,7 @@ trait LinearVariantModel extends VariantModel {
    *
    * @note The estimated value for the phenotype is estimated based on the batch-
    *       optimized model, not the global model.
-   *
-   * @param batchSsResiduals The sum of squared residuals for the batch
+    * @param batchSsResiduals The sum of squared residuals for the batch
    */
   def updateSsResiduals(batchSsResiduals: Double): Unit = {
 

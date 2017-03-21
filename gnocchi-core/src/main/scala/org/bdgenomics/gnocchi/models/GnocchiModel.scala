@@ -17,12 +17,11 @@
  */
 package org.bdgenomics.gnocchi.models
 
-import net.fnothaft.gnocchi.gnocchiModel.{ BuildAdditiveLinearVariantModel, BuildAdditiveLogisticVariantModel }
-import net.fnothaft.gnocchi.transformations.{ Gs2variant, PairSamplesWithPhenotypes }
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.gnocchi.gnocchiModel.{BuildAdditiveLogisticVariantModel, BuildAdditiveLinearVariantModel}
 
 trait GnocchiModel extends Serializable {
   val metaData: GnocchiModelMetaData
@@ -121,7 +120,6 @@ trait GnocchiModel extends Serializable {
     * @param comparisonVariantModels RDD of globally optimized VariantModels with data
     * @param newData New data to be joined with already stored data for globally optimized
     *                VariantModels
-    *
     * @return same RDD as comparisonVariantModels, except the data stored with the VariantModels
     *         contains both the old data and the data for update. 
     */

@@ -19,8 +19,6 @@ package org.bdgenomics.gnocchi.cli
 
 import java.io.{ FileInputStream, ObjectInputStream }
 
-import net.fnothaft.gnocchi.models.GnocchiModel
-
 /**
  * Loads a GnocchiModel from disk
  */

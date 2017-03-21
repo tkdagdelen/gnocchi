@@ -17,8 +17,7 @@
  */
 package org.bdgenomics.gnocchi.gnocchiModel
 
-import net.fnothaft.gnocchi.GnocchiFunSuite
-import net.fnothaft.gnocchi.models.{ GenotypeState, Phenotype }
+import org.bdgenomics.gnocchi.GnocchiFunSuite
 
 class GnocchiModelSuite extends GnocchiFunSuite {
 

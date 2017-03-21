@@ -20,10 +20,10 @@ package org.bdgenomics.gnocchi.association
 import breeze.numerics.log10
 import breeze.linalg._
 import breeze.numerics._
-import net.fnothaft.gnocchi.models.Association
 import org.apache.commons.math3.distribution.ChiSquaredDistribution
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.bdgenomics.formats.avro.Variant
+import org.bdgenomics.gnocchi.models.Association
 
 trait LogisticSiteRegression extends SiteRegression {
 

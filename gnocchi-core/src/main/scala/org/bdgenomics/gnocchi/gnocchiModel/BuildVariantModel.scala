@@ -17,7 +17,6 @@
  */
 package org.bdgenomics.gnocchi.gnocchiModel
 
-import net.fnothaft.gnocchi.models._
 import org.bdgenomics.formats.avro.Variant
 import org.bdgenomics.gnocchi.association.LinearSiteRegression
 

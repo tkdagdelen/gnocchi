@@ -15,7 +15,7 @@ package org.bdgenomics.gnocchi.cli
 import java.io.File
 import java.nio.file.{ Files, Paths }
 
-import net.fnothaft.gnocchi.models.{ AdditiveLinearGnocchiModel, AdditiveLogisticGnocchiModel, VariantModel }
+import org.bdgenomics.gnocchi.models.{VariantModel, AdditiveLinearGnocchiModel}
 import org.scalatest.Ignore
 
 class GnocchiModelSuite extends GnocchiFunSuite {

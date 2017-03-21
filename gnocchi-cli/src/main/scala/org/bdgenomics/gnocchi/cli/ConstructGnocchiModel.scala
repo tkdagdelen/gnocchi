@@ -17,14 +17,12 @@
  */
 package org.bdgenomics.gnocchi.cli
 
-import net.fnothaft.gnocchi.models._
-import net.fnothaft.gnocchi.gnocchiModel._
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SQLContext
+import org.bdgenomics.gnocchi.gnocchiModel.{BuildAdditiveLinearGnocchiModel, BuildAdditiveLogisticGnocchiModel}
 import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Option => Args4jOption }
 import org.apache.spark.rdd.RDD
-import net.fnothaft.gnocchi.gnocchiModel.BuildAdditiveLogisticGnocchiModel
 
 object ConstructGnocchiModel extends BDGCommandCompanion {
   val commandName = "ConstructGnocchiModel"

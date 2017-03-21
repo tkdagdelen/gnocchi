@@ -18,9 +18,9 @@
 package org.bdgenomics.gnocchi.association
 
 import breeze.linalg.DenseVector
-import net.fnothaft.gnocchi.GnocchiFunSuite
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.Variant
+import org.bdgenomics.gnocchi.GnocchiFunSuite
 
 class LogisticSiteRegressionSuite extends GnocchiFunSuite {
 
