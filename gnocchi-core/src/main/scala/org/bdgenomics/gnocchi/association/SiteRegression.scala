@@ -20,6 +20,7 @@ package org.bdgenomics.gnocchi.association
 import org.apache.spark.rdd.RDD
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.gnocchi.models.{Phenotype, GenotypeState, Association}
 
 trait SiteRegression extends Serializable {
 

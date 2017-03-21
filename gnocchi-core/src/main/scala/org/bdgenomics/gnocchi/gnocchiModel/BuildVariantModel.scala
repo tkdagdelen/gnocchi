@@ -18,7 +18,8 @@
 package org.bdgenomics.gnocchi.gnocchiModel
 
 import org.bdgenomics.formats.avro.Variant
-import org.bdgenomics.gnocchi.association.LinearSiteRegression
+import org.bdgenomics.gnocchi.association.{LogisticSiteRegression, LinearSiteRegression}
+import org.bdgenomics.gnocchi.models._
 
 trait BuildVariantModel {
 

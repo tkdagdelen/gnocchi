@@ -21,7 +21,7 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SQLContext }
 import org.apache.spark.sql.functions._
-import org.bdgenomics.gnocchi.models.{Phenotype, GenotypeState}
+import org.bdgenomics.gnocchi.models.{Association, GnocchiModel, Phenotype, GenotypeState}
 
 object GnocchiContext {
 
@@ -234,4 +234,19 @@ class GnocchiSqlContext private[sql] (@transient sc: SparkContext, @transient sq
       case e: java.lang.NumberFormatException => true
     }
   }
+
+  def buildModel(rdd: RDD[GenotypeState],
+                 phenotypes: RDD[Phenotype],
+                 save: Boolean = false): (GnocchiModel, RDD[Association]) = {
+
+    // call RegressPhenotypes on the data
+    val assocs = fit(rdd, phenotypes)
+
+    // extract the model parameters (including p-value) for each variant and build LogisticGnocchiModel
+    val model = extractModel(assocs, sc)
+
+    (model, assocs)
+  }
+
+  
 }
