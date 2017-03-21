@@ -215,7 +215,7 @@ trait Dominant {
 
 case class AdditiveLinearGnocchiModel(metaData: GnocchiModelMetaData,
                                       variantModels: RDD[VariantModel],
-                                      comparisonVariantModles: RDD[(VariantModel, Array[(Double, Array[Double])])])
+                                      comparisonVariantModels: RDD[(VariantModel, Array[(Double, Array[Double])])])
                                       extends GnocchiModel with Additive {
 
   // calls the appropriate version of BuildVariantModel
@@ -229,7 +229,7 @@ case class AdditiveLinearGnocchiModel(metaData: GnocchiModelMetaData,
 
 case class AdditiveLogisticGnocchiModel(metaData: GnocchiModelMetaData,
                                         variantModels: RDD[VariantModel],
-                                        comparisonVariantModles: RDD[(VariantModel, Array[(Double, Array[Double])])])
+                                        comparisonVariantModels: RDD[(VariantModel, Array[(Double, Array[Double])])])
                                         extends GnocchiModel with Additive {
 
   // calls the appropriate version of BuildVariantModel
