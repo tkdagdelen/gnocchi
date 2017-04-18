@@ -39,6 +39,12 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
 
     val variantAnnotationRDD = RegressPhenotypes(cliArgs).loadAnnotations(sc)
 
+    println("Printing GSA")
+    for (gs <- genotypeStateArray) {
+      println(gs)
+      println("---")
+    }
+
     assert(genotypeStateArray.length === 15)
     assert(variantAnnotationRDD.count === 5)
 
