@@ -17,9 +17,12 @@
  */
 package net.fnothaft.gnocchi.cli
 
+import java.io.File
+
 import net.fnothaft.gnocchi.association._
 import net.fnothaft.gnocchi.models.GenotypeState
 import net.fnothaft.gnocchi.sql.GnocchiContext._
+import org.apache.commons.io.FileUtils
 import org.apache.spark.SparkContext
 import org.apache.spark.sql.SparkSession
 import org.bdgenomics.utils.cli._
@@ -109,8 +112,6 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     val phenotypes = loadPhenotypes(sc)
 
-    val annotations = loadAnnotations(sc)
-
     val associations = performAnalysis(genotypeStates, phenotypes, sc)
 
     logResults(associations, sc)
@@ -191,12 +192,12 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
   }
 
   /**
-    * Returns a RDD of VariantAnnotations's from vcf input.
-    *
-    * @note
-    * @param sc The spark context in which Gnocchi is running.
-    * @return A RDD of VariantAnnotation objects.
-    */
+   * Returns a RDD of VariantAnnotations's from vcf input.
+   *
+   * @note
+   * @param sc The spark context in which Gnocchi is running.
+   * @return A RDD of VariantAnnotation objects.
+   */
   def loadAnnotations(sc: SparkContext): RDD[(Variant, VariantAnnotation)] = {
     /*
      * Checks for existance of ADAM-formatted parquet files in output directory

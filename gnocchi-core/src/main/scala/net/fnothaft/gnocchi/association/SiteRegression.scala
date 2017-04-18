@@ -83,9 +83,9 @@ trait SiteRegression extends Serializable with Logging {
             case "STRICT" => throw new SingularMatrixException()
             case "LENIENT" => {
               logError("Singular Matrix found in SiteRegression")
-              Association(variant, pheno, 0.0, null)
+              Association(variant, pheno, 0.0, null, null)
             }
-            case "SILENT" => Association(variant, pheno, 0.0, null)
+            case "SILENT" => Association(variant, pheno, 0.0, null, null)
           }
         }
       }

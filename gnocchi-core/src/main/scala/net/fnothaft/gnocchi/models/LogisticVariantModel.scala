@@ -42,7 +42,7 @@ trait LogisticVariantModel extends VariantModel {
   var numSamples = 0
   var phenotype = "Empty Phenotype"
   var predictions = List[(Array[(String, (Double, Double))], Association)]() //Array[(String, (Double, Double))]()
-  var association = Association(variant, phenotype, 0.0, Map())
+  var association = Association(variant, phenotype, 0.0, Map(), null)
   //  def update(observations: Array[(Double, Array[Double])],
   //             locus: ReferenceRegion,
   //             altAllele: String,

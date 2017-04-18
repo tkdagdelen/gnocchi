@@ -1,0 +1,1 @@
+SampleID	pheno1	pheno2	pheno3	pheno4	pheno5NA12878	11	12	13	14	15NA12891	21	22	43	14	35NA12892	31	32	33	24	25
