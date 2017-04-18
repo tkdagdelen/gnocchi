@@ -84,6 +84,11 @@
       <!--<version>0.21.0</version>-->
     </dependency>
     <dependency>
+      <groupId>org.bdgenomics.bdg-formats</groupId>
+      <artifactId>bdg-formats</artifactId>
+      <version>0.10.1</version>
+    </dependency>
+    <dependency>
       <groupId>org.apache.spark</groupId>
       <artifactId>spark-core_${scala.version.prefix}</artifactId>
     </dependency>

@@ -81,9 +81,9 @@ trait LinearSiteRegression extends SiteRegression {
       val statistics = Map("rSquared" -> rSquared,
         "weights" -> beta,
         "intercept" -> beta(0))
-      Association(variant, phenotype, logPValue, statistics)
+      Association(variant, phenotype, logPValue, statistics, null)
     } catch {
-      case _: SingularMatrixException => Association(variant, phenotype, 0.0, Map())
+      case _: SingularMatrixException => Association(variant, phenotype, 0.0, Map(), null)
     }
   }
 }

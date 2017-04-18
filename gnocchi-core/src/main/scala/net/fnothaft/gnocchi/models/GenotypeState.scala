@@ -19,6 +19,7 @@ package net.fnothaft.gnocchi.models
 
 import org.bdgenomics.adam.models.ReferenceRegion
 import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.formats.avro._
 
 /**
  * Genotype model that stores all relevant genotype data.

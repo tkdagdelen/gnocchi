@@ -63,8 +63,8 @@ class LinearGnocchiModelSuite extends GnocchiFunSuite {
     }
     val nonincremental = BuildAdditiveLinearVariantModel(observations, variant, phenotype)
 
-    val incrementalAssoc = Association(incrementalVariantModel.variant, "pheno", 0.0, Map("weights" -> incrementalVariantModel.weights))
-    val nonincrementalAssoc = Association(incrementalVariantModel.variant, "pheno", 0.0, Map("weights" -> nonincremental.weights))
+    val incrementalAssoc = Association(incrementalVariantModel.variant, "pheno", 0.0, Map("weights" -> incrementalVariantModel.weights), null)
+    val nonincrementalAssoc = Association(incrementalVariantModel.variant, "pheno", 0.0, Map("weights" -> nonincremental.weights), null)
 
     val obs = observation.map(kv => {
       val (geno, pheno) = kv

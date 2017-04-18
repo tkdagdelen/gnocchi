@@ -63,16 +63,19 @@ trait SiteRegression extends Serializable with Logging {
       variant.setAlternateAllele(gs.alt)
       variant.setNames(Seq())
       variant.setFiltersFailed(Seq())
-      ((variant, pheno.phenotype), genoPheno)
+      //((variant, pheno.phenotype), genoPheno)
+      (variant, genoPheno)
     })
       .groupByKey()
 
     keyedGenoPheno.map(site => {
-      val ((variant, pheno), observations) = site
+      //val ((variant, pheno), observations) = site
+      val (variant, observations) = site
       val formattedObvs = observations.map(p => {
         val (genotypeState, phenotype) = p
         (clipOrKeepState(genotypeState), phenotype.toDouble)
       }).toArray
+      val pheno = observations.toList(0)._2.phenotype
       try { regressSite(formattedObvs, variant, pheno) }
       catch {
         case error: SingularMatrixException => {

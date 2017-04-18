@@ -26,6 +26,8 @@ import org.bdgenomics.utils.cli._
 import org.kohsuke.args4j.{ Argument, Option => Args4jOption }
 
 import scala.math.exp
+import org.bdgenomics.adam.models.VariantContext
+import org.bdgenomics.adam.rdd.ADAMContext
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Dataset
@@ -33,7 +35,10 @@ import org.apache.spark.sql.functions.{ concat, lit }
 import net.fnothaft.gnocchi.models.{ Association, AuxEncoders, Phenotype }
 import org.apache.hadoop.fs.{ FileSystem, Path }
 import org.apache.spark.sql.functions.{ concat, lit, sum, count, struct, explode, collect_list }
-import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders }
+import net.fnothaft.gnocchi.models.{ Phenotype, Association, AuxEncoders, GenotypeState }
+import org.bdgenomics.formats.avro.{ VariantAnnotation, Variant, Genotype }
+import scala.collection.JavaConversions._
+import org.apache.spark.sql.Row
 
 object RegressPhenotypes extends BDGCommandCompanion {
   val commandName = "regressPhenotypes"
@@ -103,6 +108,8 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     val genotypeStates = loadGenotypes(sc)
 
     val phenotypes = loadPhenotypes(sc)
+
+    val annotations = loadAnnotations(sc)
 
     val associations = performAnalysis(genotypeStates, phenotypes, sc)
 
@@ -184,6 +191,50 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
   }
 
   /**
+    * Returns a RDD of VariantAnnotations's from vcf input.
+    *
+    * @note
+    * @param sc The spark context in which Gnocchi is running.
+    * @return A RDD of VariantAnnotation objects.
+    */
+  def loadAnnotations(sc: SparkContext): RDD[(Variant, VariantAnnotation)] = {
+    /*
+     * Checks for existance of ADAM-formatted parquet files in output directory
+     * Creates them if none exist.
+     */
+    val absAssociationPath = new File(args.associations).getAbsolutePath
+    val parquetInputDestination = absAssociationPath.split("/").reverse.drop(1)
+      .reverse.mkString("/") + "/parquetInputFiles/"
+    val parquetFiles = new File(parquetInputDestination)
+    if (!parquetFiles.getAbsoluteFile.exists) {
+      val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
+      Vcf2ADAM(cmdLine).run(sc)
+    } else if (args.overwrite) {
+      FileUtils.deleteDirectory(parquetFiles)
+      val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
+      Vcf2ADAM(cmdLine).run(sc)
+    }
+
+    // Uses ADAM's parquet loader to construct RDD of Genotypes
+    val ac = new ADAMContext(sc)
+    val fromADAMParquet = ac.loadParquet[Genotype](parquetInputDestination) //ac.loadParquet[VariantContext](parquetInputDestination)
+    val uniqueVariants = fromADAMParquet.map(gt => gt.getVariant).distinct()
+
+    // Maps RDD of Genotypes to tuple of (Variant, VariantAnnotation) per unique variant
+    uniqueVariants.map(v => {
+      val vAnnotation = v.getAnnotation
+      v.setContigName(v.getContigName + "_" + v.getEnd.toString + "_" + v.getAlternateAllele)
+      v.setAnnotation(null)
+      v.setFiltersApplied(null)
+      v.setFiltersPassed(null)
+      v.setFiltersFailed(List[String]())
+      v.setReferenceAllele(null)
+      (v, vAnnotation)
+    })
+    // uniqueVariants.map(v => (v, v.getAnnotation))
+  }
+
+  /**
    * Returns an RDD of Phenotype objects, built from tab-delimited text file
    * of phenotypes.
    *
@@ -245,11 +296,31 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       case "DOMINANT_LOGISTIC" => DominantLogisticAssociation(genotypeStates.rdd, phenotypes, args.validationStringency)
     }
 
+    // Map RDD[Association] to RDD[(Variant, Association)]
+    val keyedAssociations = associations.map(assoc => (assoc.variant, assoc))
+
+    val keyedAnnotations = loadAnnotations(sc)
+
+    val joinedAssocAnnot = keyedAnnotations.fullOuterJoin(keyedAssociations).map {
+      case (variant, (annotation, association)) => (association, annotation)
+    }
+
+    val assocExists = joinedAssocAnnot.filter(_._1.isDefined).map(assocAnnotPair => (assocAnnotPair._1.get, assocAnnotPair._2))
+    val annotatedAssociations = assocExists.map(
+      assocAnnotPair => {
+        val (assoc, annot) = assocAnnotPair
+        Association(assoc.variant, assoc.phenotype, assoc.logPValue, assoc.statistics, annot)
+      })
+
     /*
      * creates dataset of Association objects instead of leaving as RDD in order
      * to make it easy to convert to DataFrame and write to parquet in logResults
      */
-    sparkSession.createDataset(associations)
+    /*
+     * creates dataset of Association objects instead of leaving as RDD in order
+     * to make it easy to convert to DataFrame and write to parquet in logResults
+     */
+    sparkSession.createDataset(annotatedAssociations)
   }
 
   def logResults(associations: Dataset[Association],
@@ -267,7 +338,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
       associations.rdd.keyBy(_.logPValue)
         .sortBy(_._1)
         .map(r => "%s, %s, %s".format(r._2.variant.getContigName,
-          r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString))
+          r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString, r._2.variantAnnotation.getOrElse("None").toString))
         .saveAsTextFile(args.associations)
     } else {
       associations.toDF.write.parquet(args.associations)
