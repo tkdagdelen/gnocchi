@@ -89,23 +89,23 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
 
   }
 
-  //  sparkTest("Annotations being successfully written to output log file") {
-  //    // (TODO) Add this test case, given that logResults now writes annotation data
-  //
-  //    val genoFilePath = ClassLoader.getSystemClassLoader.getResource("small_snpeff.vcf").getFile
-  //    val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("2Liner_annot.txt").getFile
-  //    val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -overwriteParquet"
-  //    val cliArgs = cliCall.split(" ").drop(2)
-  //
-  //    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
-  //    val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-  //
-  //    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc)
-  //    RegressPhenotypes(cliArgs).logResults(regressionResult, sc)
-  //
-  //    // val logFile = scala.io.Source.fromFile(s"$destination").mkString
-  //    // (TODO) Process and verify contents of logFile
-  //
-  //  }
+   sparkTest("Annotations being successfully written to output log file") {
+     // (TODO) Add this test case, given that logResults now writes annotation data
+  
+     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("small_snpeff.vcf").getFile
+     val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("2Liner_annot.txt").getFile
+     val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -saveAsText -phenoName pheno1 -overwriteParquet"
+     val cliArgs = cliCall.split(" ").drop(2)
+  
+     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
+     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
+  
+     val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc)
+     RegressPhenotypes(cliArgs).logResults(regressionResult, sc)
+  
+     // val logFile = scala.io.Source.fromFile(s"$destination").mkString
+     // (TODO) Process and verify contents of logFile
+  
+   }
 
 }
