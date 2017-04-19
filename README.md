@@ -49,7 +49,9 @@ This project is released under an [Apache 2.0 license](LICENSE.txt).
 
 # (TODO) For annotation integration
 
-- [ ] Migrate changes from `annot` branch to `annotMerge`
+- [x] Migrate changes from `annot` branch to `annotMerge`
+
+- [x] Update performAnalysis API
 
 - [ ] Write logTest test case that ensures that annotation data is successfully written to log output
 
