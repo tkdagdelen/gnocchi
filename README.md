@@ -46,3 +46,13 @@ Note: phenotypes and covariates must be numerical. For nominal scale data (i.e. 
 # License
 
 This project is released under an [Apache 2.0 license](LICENSE.txt).
+
+# (TODO) For annotation integration
+
+[] Migrate changes from `annot` branch to `annotMerge`
+[] Write logTest test case that ensures that annotation data is successfully written to log output
+[] Write full vcf test case
+  [] Copy vcf file from HDFS to local cluster `hdfs dfs -copyToLocal path/to/vcf`
+  [] Pass vcf through snpEff executable which should be in your cluster 
+  [] Find/generate corresponding phenotype file
+  [] Write test case into Gnocchi
