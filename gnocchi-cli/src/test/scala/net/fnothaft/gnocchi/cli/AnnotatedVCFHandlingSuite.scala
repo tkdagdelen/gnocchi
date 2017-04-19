@@ -78,7 +78,7 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
     val phenotypeStateDataset = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
     val variantAnnotationRDD = RegressPhenotypes(cliArgs).loadAnnotations(sc)
 
-    val associations = RegressPhenotypes(cliArgs).performAnalysis(genotypeStateDataset, phenotypeStateDataset, sc)
+    val associations = RegressPhenotypes(cliArgs).performAnalysis(genotypeStateDataset, phenotypeStateDataset, Some(variantAnnotationRDD), sc)
 
     assert(variantAnnotationRDD.count === 5)
 
@@ -101,11 +101,7 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
     val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $testOutput -saveAsText -phenoName pheno1 -overwriteParquet"
     val cliArgs = cliCall.split(" ").drop(2)
 
-    val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
-    val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-
-    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc)
-    RegressPhenotypes(cliArgs).logResults(regressionResult, sc)
+    RegressPhenotypes(cliArgs).run(sc)
 
     // val logFile = scala.io.Source.fromFile(s"$destination").mkString
     // (TODO) Process and verify contents of logFile

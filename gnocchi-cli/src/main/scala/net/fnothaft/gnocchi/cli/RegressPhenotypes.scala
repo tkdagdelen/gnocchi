@@ -112,7 +112,9 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
 
     val phenotypes = loadPhenotypes(sc)
 
-    val associations = performAnalysis(genotypeStates, phenotypes, sc)
+    val annotations = loadAnnotations(sc)
+
+    val associations = performAnalysis(genotypeStates, phenotypes, Some(annotations), sc)
 
     logResults(associations, sc)
   }
@@ -281,6 +283,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
    */
   def performAnalysis(genotypeStates: Dataset[GenotypeState],
                       phenotypes: RDD[Phenotype[Array[Double]]],
+                      annotationsOption: Option[RDD[(Variant, VariantAnnotation)]],
                       sc: SparkContext): Dataset[Association] = {
     // sets up sparkSession
     val sparkSession = SparkSession.builder().getOrCreate()
@@ -300,28 +303,30 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     // Map RDD[Association] to RDD[(Variant, Association)]
     val keyedAssociations = associations.map(assoc => (assoc.variant, assoc))
 
-    val keyedAnnotations = loadAnnotations(sc)
+    if (!annotationsOption.isEmpty) {
+      val keyedAnnotations = annotationsOption.get
 
-    val joinedAssocAnnot = keyedAnnotations.fullOuterJoin(keyedAssociations).map {
-      case (variant, (annotation, association)) => (association, annotation)
+      val joinedAssocAnnot = keyedAnnotations.fullOuterJoin(keyedAssociations).map {
+        case (variant, (annotation, association)) => (association, annotation)
+      }
+
+      val assocExists = joinedAssocAnnot.filter(_._1.isDefined).map(assocAnnotPair => (assocAnnotPair._1.get, assocAnnotPair._2))
+      val annotatedAssociations = assocExists.map(
+        assocAnnotPair => {
+          val (assoc, annot) = assocAnnotPair
+          Association(assoc.variant, assoc.phenotype, assoc.logPValue, assoc.statistics, annot)
+        })
+
+      sparkSession.createDataset(annotatedAssociations)
+
+    } else {
+      /*
+       * creates dataset of Association objects instead of leaving as RDD in order
+       * to make it easy to convert to DataFrame and write to parquet in logResults
+       */
+      sparkSession.createDataset(associations)
     }
 
-    val assocExists = joinedAssocAnnot.filter(_._1.isDefined).map(assocAnnotPair => (assocAnnotPair._1.get, assocAnnotPair._2))
-    val annotatedAssociations = assocExists.map(
-      assocAnnotPair => {
-        val (assoc, annot) = assocAnnotPair
-        Association(assoc.variant, assoc.phenotype, assoc.logPValue, assoc.statistics, annot)
-      })
-
-    /*
-     * creates dataset of Association objects instead of leaving as RDD in order
-     * to make it easy to convert to DataFrame and write to parquet in logResults
-     */
-    /*
-     * creates dataset of Association objects instead of leaving as RDD in order
-     * to make it easy to convert to DataFrame and write to parquet in logResults
-     */
-    sparkSession.createDataset(annotatedAssociations)
   }
 
   def logResults(associations: Dataset[Association],

@@ -80,7 +80,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc).collect()
+    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, None, sc).collect()
 
     //Assert that the rsquared is in the right threshold. 
     assert(regressionResult(0).statistics("rSquared") == 1.0, "rSquared = " + regressionResult(0).statistics("rSquared"))
@@ -93,7 +93,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc).collect()
+    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, None, sc).collect()
 
     //Assert that the rsquared is in the right threshold. 
     assert(regressionResult(0).statistics("rSquared") == 1.0, "rSquared = " + regressionResult(0).statistics("rSquared"))
@@ -132,7 +132,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-    val assocs = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc)
+    val assocs = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, None, sc)
     val regressionResult = assocs.collect()
 
     RegressPhenotypes(cliArgs).logResults(assocs, sc)
@@ -147,7 +147,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc).collect()
+    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, None, sc).collect()
   }
 
   sparkTest("Test that singular matrix exceptions are caught: STRICT Case") {
@@ -157,6 +157,6 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     val cliArgs = cliCall.split(" ").drop(2)
     val genotypeStates = RegressPhenotypes(cliArgs).loadGenotypes(sc)
     val phenotypes = RegressPhenotypes(cliArgs).loadPhenotypes(sc)
-    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, sc).collect()
+    val regressionResult = RegressPhenotypes(cliArgs).performAnalysis(genotypeStates, phenotypes, None, sc).collect()
   }
 }
