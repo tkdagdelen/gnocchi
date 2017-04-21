@@ -105,7 +105,7 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
     // val logFile = scala.io.Source.fromFile(s"$destination").mkString
     // (TODO) Process and verify contents of logFile
 
-    FileUtils.deleteDirectory(new File("../test_data_out"))
+    // FileUtils.deleteDirectory(new File("../test_data_out"))
   }
 
 }

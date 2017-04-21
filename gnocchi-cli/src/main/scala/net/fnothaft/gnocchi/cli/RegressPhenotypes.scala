@@ -343,7 +343,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
     if (args.saveAsText) {
       associations.rdd.keyBy(_.logPValue)
         .sortBy(_._1)
-        .map(r => "%s, %s, %s".format(r._2.variant.getContigName,
+        .map(r => "%s, %s, %s | %s".format(r._2.variant.getContigName,
           r._2.variant.getStart, Math.pow(10, r._2.logPValue).toString, r._2.variantAnnotation.getOrElse("None").toString))
         .saveAsTextFile(args.associations)
     } else {
