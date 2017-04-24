@@ -109,7 +109,7 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
 
     assert(expectedOuputLines sameElements lines)
 
-    // FileUtils.deleteDirectory(new File("../test_data_out"))
+    FileUtils.deleteDirectory(new File("../test_data_out"))
   }
 
 }
