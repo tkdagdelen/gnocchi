@@ -20,6 +20,7 @@ package net.fnothaft.gnocchi.cli
 
 import java.nio.file.Files
 import java.io.File
+import scala.io.Source
 import org.apache.commons.io.FileUtils
 import org.apache.commons.io.filefilter.WildcardFileFilter
 
@@ -94,6 +95,7 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
   sparkTest("Annotations being successfully written to output log file") {
 
     val testOutput = "../test_data_out/annotations_test"
+    val expectedOutput = "src/test/resources/AnnotationsOutput.txt"
 
     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("small_snpeff.vcf").getFile
     val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("2Liner_annot.txt").getFile
@@ -102,10 +104,12 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
 
     RegressPhenotypes(cliArgs).run(sc)
 
-    // val logFile = scala.io.Source.fromFile(s"$destination").mkString
-    // (TODO) Process and verify contents of logFile
+    val expectedOuputLines = Source.fromFile(expectedOutput).getLines.toSet
+    val lines = Source.fromFile(testOutput + "/part-00000").getLines.toSet
 
-    FileUtils.deleteDirectory(new File("../test_data_out"))
+    assert(expectedOuputLines sameElements lines)
+
+    // FileUtils.deleteDirectory(new File("../test_data_out"))
   }
 
 }
