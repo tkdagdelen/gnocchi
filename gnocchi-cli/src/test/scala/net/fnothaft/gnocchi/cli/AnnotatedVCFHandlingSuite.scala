@@ -52,16 +52,14 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
     assert(variantAnnotationRDD.first._2.getForwardReadDepth === null)
     assert(variantAnnotationRDD.first._2.getReverseReadDepth === null)
     assert(variantAnnotationRDD.first._2.getAlleleFrequency === 0.333f)
-    assert(variantAnnotationRDD.first._2.getCigar === null)
     assert(variantAnnotationRDD.first._2.getDbSnp === null)
     assert(variantAnnotationRDD.first._2.getHapMap2 === null)
-    assert(variantAnnotationRDD.first._2.getHapMap3 === null)
     assert(variantAnnotationRDD.first._2.getValidated === null)
     assert(variantAnnotationRDD.first._2.getThousandGenomes === null)
     assert(variantAnnotationRDD.first._2.getSomatic === false)
     assert(variantAnnotationRDD.first._2.getAttributes.get("ClippingRankSum") == "-2.196")
-
   }
+
 
   sparkTest("Joining Annotation and Assocation RDDs") {
     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("small_snpeff.vcf").getFile
@@ -77,9 +75,8 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
 
     assert(variantAnnotationRDD.count === 5)
 
-    assert(associations.rdd.count() == 3) // (TODO) Investigate why not 1-1 mapping
+    assert(associations.rdd.count() == 3)
 
-    // First association has no corresponding annotation so we test on second one
     val checkAssoc = associations.rdd.zipWithIndex.filter(_._2 == 1).map(_._1)
 
     assert(checkAssoc.first.variant.getContigName === "1_14400_C")
@@ -89,8 +86,8 @@ class AnnotatedVCFHandlingSuite extends GnocchiFunSuite {
     assert(checkAssoc.first.variantAnnotation.get.getAlleleFrequency == 0.333f)
     assert(checkAssoc.first.variantAnnotation.get.getSomatic == false)
     assert(checkAssoc.first.variantAnnotation.get.getAttributes.get("ClippingRankSum") == "0.138")
-
   }
+
 
   sparkTest("Annotations being successfully written to output log file") {
 
