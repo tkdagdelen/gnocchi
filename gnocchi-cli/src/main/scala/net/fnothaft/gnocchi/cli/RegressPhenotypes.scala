@@ -207,7 +207,7 @@ class RegressPhenotypes(protected val args: RegressPhenotypesArgs) extends BDGSp
      */
     val absAssociationPath = new File(args.associations).getAbsolutePath
     val parquetInputDestination = absAssociationPath.split("/").reverse.drop(1)
-      .reverse.mkString("/") + "/parquetInputFiles/"
+      .reverse.mkString("/") + "/annotationInputFiles/"
     val parquetFiles = new File(parquetInputDestination)
     if (!parquetFiles.getAbsoluteFile.exists) {
       val cmdLine: Array[String] = Array[String](args.genotypes, parquetInputDestination)
