@@ -75,74 +75,61 @@ trait LinearSiteRegression[VM <: VariantModel[VM]] extends SiteApplication[VM] {
     }
     val mean = runningSum / numObservations.toDouble
 
-    try {
-      // create linear model
-      val ols = new OLSMultipleLinearRegression()
+    // create linear model
+    val ols = new OLSMultipleLinearRegression()
 
-      // input sample data
-      ols.newSampleData(y, x)
+    // input sample data
+    ols.newSampleData(y, x)
 
-      // calculate coefficients
-      val beta = ols.estimateRegressionParameters()
+    // calculate coefficients
+    val beta = ols.estimateRegressionParameters()
 
-      // calculate sum of squared residuals
-      val ssResiduals = ols.calculateResidualSumOfSquares()
+    // calculate sum of squared residuals
+    val ssResiduals = ols.calculateResidualSumOfSquares()
 
-      // calculate sum of squared deviations
-      val ssDeviations = sumOfSquaredDeviations(observations, mean)
+    // calculate sum of squared deviations
+    val ssDeviations = sumOfSquaredDeviations(observations, mean)
 
-      // calculate Rsquared
-      val rSquared = ols.calculateRSquared()
+    // calculate Rsquared
+    val rSquared = ols.calculateRSquared()
 
-      // compute the regression parameters standard errors
-      val standardErrors = ols.estimateRegressionParametersStandardErrors()
+    // compute the regression parameters standard errors
+    val standardErrors = ols.estimateRegressionParametersStandardErrors()
 
-      // get standard error for genotype parameter (for p value calculation)
-      val genoSE = standardErrors(1)
+    // get standard error for genotype parameter (for p value calculation)
+    val genoSE = standardErrors(1)
 
-      // test statistic t for jth parameter is equal to bj/SEbj, the parameter estimate divided by its standard error
-      val t = beta(1) / genoSE
+    // test statistic t for jth parameter is equal to bj/SEbj, the parameter estimate divided by its standard error
+    val t = beta(1) / genoSE
 
-      /* calculate p-value and report:
-        Under null hypothesis (i.e. the j'th element of weight vector is 0) the relevant distribution is
-        a t-distribution with N-p-1 degrees of freedom. (N = number of samples, p = number of regressors i.e. genotype+covariates+intercept)
-        https://en.wikipedia.org/wiki/T-statistic
-      */
-      val residualDegreesOfFreedom = numObservations - phenotypesLength - 1
-      val tDist = new TDistribution(residualDegreesOfFreedom)
-      val pvalue = 2 * tDist.cumulativeProbability(-math.abs(t))
-      val logPValue = log10(pvalue)
+    /* calculate p-value and report:
+      Under null hypothesis (i.e. the j'th element of weight vector is 0) the relevant distribution is
+      a t-distribution with N-p-1 degrees of freedom. (N = number of samples, p = number of regressors i.e. genotype+covariates+intercept)
+      https://en.wikipedia.org/wiki/T-statistic
+    */
+    val residualDegreesOfFreedom = numObservations - phenotypesLength - 1
+    val tDist = new TDistribution(residualDegreesOfFreedom)
+    val pvalue = 2 * tDist.cumulativeProbability(-math.abs(t))
+    val logPValue = log10(pvalue)
 
-      val statistics = Map("rSquared" -> rSquared,
-        "weights" -> beta,
-        "intercept" -> beta(0),
-        "numSamples" -> numObservations,
-        "ssDeviations" -> ssDeviations,
-        "ssResiduals" -> ssResiduals,
-        "tStatistic" -> t,
-        "residualDegreesOfFreedom" -> residualDegreesOfFreedom)
-      constructAssociation(variant.getContigName,
-        numObservations,
-        "Linear",
-        beta,
-        genoSE,
-        variant,
-        phenotype,
-        logPValue,
-        pvalue,
-        statistics)
-    } catch {
-      case _: SingularMatrixException => constructAssociation(variant.getContigName,
-        numObservations,
-        "Linear",
-        Array(0.0),
-        0.0,
-        variant,
-        phenotype,
-        0.0,
-        0.0,
-        Map())
-    }
+    val statistics = Map("rSquared" -> rSquared,
+      "weights" -> beta,
+      "intercept" -> beta(0),
+      "numSamples" -> numObservations,
+      "ssDeviations" -> ssDeviations,
+      "ssResiduals" -> ssResiduals,
+      "tStatistic" -> t,
+      "residualDegreesOfFreedom" -> residualDegreesOfFreedom)
+    constructAssociation(variant.getContigName,
+      numObservations,
+      "Linear",
+      beta,
+      genoSE,
+      variant,
+      phenotype,
+      logPValue,
+      pvalue,
+      statistics)
   }
 
   def sumOfSquaredDeviations(observations: Array[(Double, Array[Double])], mean: Double): Double = {
