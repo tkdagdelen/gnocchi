@@ -50,7 +50,7 @@ class BuildGnocchiModelSuite extends GnocchiFunSuite {
   }
 
   ignore("SelectComparisonModels should select first variant from each haplotype block") {
-
+    // is this a function that should be tested in Gnocchi-core instead?
   }
 
   ignore("loaded model should have correct type: AdditiveLogisticGnocchiModel") {
