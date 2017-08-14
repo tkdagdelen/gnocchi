@@ -25,7 +25,7 @@ import net.fnothaft.gnocchi.models.logistic.{ AdditiveLogisticGnocchiModel, Domi
 import net.fnothaft.gnocchi.models.variant.VariantModel
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
-import org.bdgenomics.formats.avro.{ Contig, Variant }
+import org.bdgenomics.formats.avro.{ Contig, Genotype, Variant }
 import org.bdgenomics.utils.misc.Logging
 import net.fnothaft.gnocchi.models.variant.linear.{ AdditiveLinearVariantModel, DominantLinearVariantModel }
 import net.fnothaft.gnocchi.models.variant.logistic.{ AdditiveLogisticVariantModel, DominantLogisticVariantModel }
@@ -85,8 +85,11 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
       val c: Column = when(filteredGtFrame("alleles").getItem(i) === "NO_CALL", 1).otherwise(0)
       c
     }).reduce(_ + _)
-
-    filteredGtFrame.select(filteredGtFrame("variant.contigName").as("contigName"),
+    println(filteredGtFrame.columns)
+    filteredGtFrame.printSchema()
+    println(filteredGtFrame("variant.contig select contighName").as("contigName"))
+    println(filteredGtFrame("variant.start").as("start"))
+    filteredGtFrame.select(filteredGtFrame("variant.contig")("contigName").as("contigName"),
       filteredGtFrame("variant.start").as("start"),
       filteredGtFrame("variant.end").as("end"),
       filteredGtFrame("variant.referenceAllele").as("ref"),
@@ -407,7 +410,6 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
         val (sampleid, gsPheno) = kvv
         // unpack the information into genotype state and pheno
         val (gs, pheno) = gsPheno
-
         // create contig and Variant objects and group by Variant
         // pack up the information into an Association object
         val variant = gs2variant(gs)

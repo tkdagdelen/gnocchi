@@ -38,7 +38,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
     }
   }
 
-  ignore("Test LoadPhenotypes: Read in a 2-line phenotype file; call with ADDDITIVE_LINEAR but with no phenoName") {
+  sparkTest("Read in a 2-line phenotype file; call with ADDDITIVE_LINEAR but with no phenoName") {
     val genoFilePath = "File://" + ClassLoader.getSystemClassLoader.getResource("small1.vcf").getFile
     val phenoFilePath = "File://" + ClassLoader.getSystemClassLoader.getResource("2Liner.txt").getFile
     val baseDir = new File(".").getAbsolutePath()
@@ -49,7 +49,7 @@ class RegressPhenotypesSuite extends GnocchiFunSuite {
 
   }
 
-  ignore("Test LoadPhenotypes: Read in a 2-line phenotype file; call with -covar but not -covarNames") {
+  ignore("Read in a 2-line phenotype file; call with -covar but not -covarNames") {
     val genoFilePath = ClassLoader.getSystemClassLoader.getResource("small1.vcf").getFile
     val phenoFilePath = ClassLoader.getSystemClassLoader.getResource("2Liner.txt").getFile
     val cliCall = s"../bin/gnocchi-submit regressPhenotypes $genoFilePath $phenoFilePath ADDITIVE_LINEAR $destination -phenoName pheno2 -covar -overwriteParquet"

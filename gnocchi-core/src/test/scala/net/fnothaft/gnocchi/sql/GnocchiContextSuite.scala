@@ -22,34 +22,38 @@ import net.fnothaft.gnocchi.GnocchiFunSuite
 import net.fnothaft.gnocchi.algorithms.siteregression.{ AdditiveLinearRegression, DominantLinearRegression }
 import net.fnothaft.gnocchi.rdd.genotype.GenotypeState
 import net.fnothaft.gnocchi.rdd.phenotype.Phenotype
-import org.bdgenomics.formats.avro.Variant
+import org.apache.spark
+import org.bdgenomics.formats.avro.{ Genotype, GenotypeAllele, Variant }
+import GnocchiContext._
+import org.apache.spark.api.java.function.FilterFunction
+import org.apache.spark.sql.SparkSession
+
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 
 class GnocchiContextSuite extends GnocchiFunSuite {
 
-  import GnocchiContext._
-
-  ignore("toGenotypeStateDataFrame should work for ploidy == 1") {
-
-  }
-
-  ignore("toGenotypeStateDataFrame should work for ploidy ==2") {
-
-  }
-
-  ignore("toGenotypeStateDataFrame should count number of NO_CALL's correctly") {
-
+  sparkTest("toGenotypeStateDataFrame should count number of NO_CALL's correctly") {
+    // sets up sparkSession
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val genotypes = sparkSession.read.format("parquet").load("src/test/resources/3snps1sampleGenotypes")
+    val gsFrame = sc.toGenotypeStateDataFrame(genotypes, 2).as[GenotypeState]
+    val numMissing = gsFrame.filter("missingGenotypes == 1").count
+    assert(numMissing == 2)
   }
 
   private def makeGenotypeState(idx: Int, sampleId: String, gs: Int, missing: Int): GenotypeState = {
     GenotypeState(s"1_${idx}_A", idx, idx + 1, "A", "C", sampleId, gs, missing)
   }
 
+  val allMissingSample = (1 to 10).map(makeGenotypeState(_, "sample1", 0, 2))
+  val eachHalfMissingSample = (1 to 10).map(makeGenotypeState(_, "sample2", 1, 1))
+  val noneMissingSample = (1 to 10).map(makeGenotypeState(_, "sample3", 2, 0))
+  val halfMissingSample = (1 to 5).map(makeGenotypeState(_, "sample4", 2, 0)) ++
+    (6 to 10).map(makeGenotypeState(_, "sample4", 0, 2))
+
   sparkTest("filterSamples should not filter any samples if mind >= 1") {
-    val allMissingSample = (1 to 10).map(makeGenotypeState(_, "sample1", 0, 2))
-    val eachHalfMissingSample = (1 to 10).map(makeGenotypeState(_, "sample2", 1, 1))
-    val noneMissingSample = (1 to 10).map(makeGenotypeState(_, "sample3", 2, 0))
-    val halfMissingSample = (1 to 5).map(makeGenotypeState(_, "sample4", 2, 0)) ++
-      (6 to 10).map(makeGenotypeState(_, "sample4", 0, 2))
 
     val gsCollection = allMissingSample ++ eachHalfMissingSample ++ halfMissingSample ++ noneMissingSample
 
@@ -60,11 +64,6 @@ class GnocchiContextSuite extends GnocchiFunSuite {
   }
 
   sparkTest("filterSamples should filter on mind if mind is greater than 0 but less than 1") {
-    val allMissingSample = (1 to 10).map(makeGenotypeState(_, "sample1", 0, 2))
-    val eachHalfMissingSample = (1 to 10).map(makeGenotypeState(_, "sample2", 1, 1))
-    val noneMissingSample = (1 to 10).map(makeGenotypeState(_, "sample3", 2, 0))
-    val halfMissingSample = (1 to 5).map(makeGenotypeState(_, "sample4", 2, 0)) ++
-      (6 to 10).map(makeGenotypeState(_, "sample4", 0, 2))
 
     val badCollection = allMissingSample
     val goodCollection = eachHalfMissingSample ++ halfMissingSample ++ noneMissingSample
@@ -78,11 +77,6 @@ class GnocchiContextSuite extends GnocchiFunSuite {
   }
 
   sparkTest("filterSamples should filter out all non-perfect samples if mind == 0") {
-    val allMissingSample = (1 to 10).map(makeGenotypeState(_, "sample1", 0, 2))
-    val eachHalfMissingSample = (1 to 10).map(makeGenotypeState(_, "sample2", 1, 1))
-    val noneMissingSample = (1 to 10).map(makeGenotypeState(_, "sample3", 2, 0))
-    val halfMissingSample = (1 to 5).map(makeGenotypeState(_, "sample4", 2, 0)) ++
-      (6 to 10).map(makeGenotypeState(_, "sample4", 0, 2))
 
     val imperfectCollection = allMissingSample ++ eachHalfMissingSample ++ halfMissingSample
     val perfectCollection = noneMissingSample
@@ -95,18 +89,38 @@ class GnocchiContextSuite extends GnocchiFunSuite {
     assert(perfectCollection.toSet == resultsRdd.collect.toSet, "Sample filtering did not match perfect collection.")
   }
 
-  ignore("filterVariants should not filter any varaints if geno and maf thresholds are both 0") {
+  // Variant  Sample1 Sample2 Sample3 Sample4   MAF   Geno
+  // v1       0       0       0       1         0.25  1.0
+  // v2       1       .       .       0         0.5   0.5
+
+  val gs1 = makeGenotypeState(0, "sample1", 0, 0)
+  val gs2 = makeGenotypeState(0, "sample2", 0, 0)
+  val gs3 = makeGenotypeState(0, "sample3", 0, 0)
+  val gs4 = makeGenotypeState(0, "sample4", 1, 0)
+  val gs5 = makeGenotypeState(1, "sample1", 1, 0)
+  val gs6 = makeGenotypeState(1, "sample2", 0, 1)
+  val gs7 = makeGenotypeState(1, "sample3", 0, 1)
+  val gs8 = makeGenotypeState(1, "sample4", 0, 0)
+
+  ignore("filterVariants should not filter any variants if geno and maf thresholds are both 0") {
+    val gsRdd = sc.parallelize(Array(gs1, gs2, gs3, gs4, gs5, gs6, gs7, gs8))
+    val filteredGsRdd = sc.filterVariants(gsRdd, 0.0, 0.0)
+    assert(filteredGsRdd.count == 8)
 
   }
 
-  ignore("filterVariants should filter out variants with genotyping rate less than 0.1 when " +
-    "geno threshold set to 0.1 and maf threshold is greater than 0.1") {
-
+  ignore("filterVariants should filter out variants with genotyping rate less than 0.5 when " +
+    "geno threshold set to 0.6 and maf threshold is greater than 0.1") {
+    val gsRdd = sc.parallelize(Array(gs1, gs2, gs3, gs4, gs5, gs6, gs7, gs8))
+    val filteredGsRdd = sc.filterVariants(gsRdd, 0.6, 0.1)
+    assert(filteredGsRdd.count == 4)
   }
 
-  ignore("filterVariants should filter out variants with minor allele frequency less than 0.1 when" +
-    "maf threshold set to 0.1 and geno threshold is greater than 0.1") {
-
+  ignore("filterVariants should filter out variants with minor allele frequency less than 0.3 when" +
+    "maf threshold set to 0.3 and geno threshold is greater than 0.1") {
+    val gsRdd = sc.parallelize(Array(gs1, gs2, gs3, gs4, gs5, gs6, gs7, gs8))
+    val filteredGsRdd = sc.filterVariants(gsRdd, 0.1, 0.3)
+    assert(filteredGsRdd.count == 4)
   }
 
   ignore("Results from loadAndFilterGenotypes should match results of calls of filterSamples and then filterVariants") {
