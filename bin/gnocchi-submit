@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+# usage: adam-submit [<spark-args> --] <adam-args>
+
 set -e
 
 # Split args into Spark and GNOCCHI args
@@ -25,48 +27,55 @@ PRE_DD=()
 POST_DD=()
 for ARG in "$@"; do
   shift
-  # echo $ARG
   if [[ $ARG == "--" ]]; then
     DD=True
     POST_DD=( "$@" )
-    echo $POST_DD
     break
   fi
   PRE_DD+=("$ARG")
 done
 
 if [[ $DD == True ]]; then
-  SPARK_ARGS="${PRE_DD[@]}"
-  GNOCCHI_ARGS="${POST_DD[@]}"
+  SPARK_ARGS=("${PRE_DD[@]}")
+  GNOCCHI_ARGS=("${POST_DD[@]}")
 else
   SPARK_ARGS=()
-  GNOCCHI_ARGS="${PRE_DD[@]}"
+  GNOCCHI_ARGS=("${PRE_DD[@]}")
 fi
 
 # does the user have GNOCCHI_OPTS set? if yes, then warn
 if [[ $DD == False && -n "$GNOCCHI_OPTS" ]]; then
     echo "WARNING: Passing Spark arguments via GNOCCHI_OPTS was recently removed."
-    echo "Run gnocchi-submit instead as gnocchi-submit <spark-args> -- <gnocchi-args>"
+    echo "Run adam-submit instead as adam-submit <spark-args> -- <adam-args>"
 fi
 
-# Figure out where GNOCCHI is installed
-SCRIPT_DIR="$(cd `dirname $0`/..; pwd)"
+# Find original directory of this script, resolving symlinks
+# http://stackoverflow.com/questions/59895/can-a-bash-script-tell-what-directory-its-stored-in/246128#246128
+SOURCE="${BASH_SOURCE[0]}"
+while [ -h "$SOURCE" ]; do # resolve $SOURCE until the file is no longer a symlink
+    SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+    SOURCE="$(readlink "$SOURCE")"
+    [[ $SOURCE != /* ]] && SOURCE="$SCRIPT_DIR/$SOURCE" # if $SOURCE was a relative symlink, we need to resolve it relative to the path where the symlink file was located
+done
+SCRIPT_DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
+INSTALL_DIR="$SCRIPT_DIR/.."
 
+# Find GNOCCHI cli assembly jar
 GNOCCHI_CLI_JAR=
-if [ -d "$SCRIPT_DIR/repo" ]; then
-  ASSEMBLY_DIR="$SCRIPT_DIR/repo"
+if [ -d "$INSTALL_DIR/repo" ]; then
+  ASSEMBLY_DIR="$INSTALL_DIR/repo"
 else
-  ASSEMBLY_DIR="$SCRIPT_DIR/gnocchi-cli/target"
+  ASSEMBLY_DIR="$INSTALL_DIR/gnocchi-cli/target"
 fi
 
-num_jars="$(ls -1 "$ASSEMBLY_DIR" | grep "^gnocchi-cli_[0-9A-Za-z\.-]*\.jar$" | grep -v javadoc | grep -v sources | wc -l)"
+num_jars="$(ls -1 "$ASSEMBLY_DIR" | grep "^gnocchi[0-9A-Za-z\.\_\-]*\.jar$" | grep -v javadoc | grep -v sources | wc -l)"
 if [ "$num_jars" -eq "0" ]; then
   echo "Failed to find GNOCCHI cli assembly in $ASSEMBLY_DIR." 1>&2
   echo "You need to build GNOCCHI before running this program." 1>&2
   exit 1
 fi
 
-ASSEMBLY_JARS="$(ls -1 "$ASSEMBLY_DIR" | grep "^gnocchi-cli_[0-9A-Za-z\.-]*\.jar$" | grep -v javadoc | grep -v sources || true)"
+ASSEMBLY_JARS="$(ls -1 "$ASSEMBLY_DIR" | grep "^gnocchi[0-9A-Za-z\.\_\-]*\.jar$" | grep -v javadoc | grep -v sources || true)"
 if [ "$num_jars" -gt "1" ]; then
   echo "Found multiple GNOCCHI cli assembly jars in $ASSEMBLY_DIR:" 1>&2
   echo "$ASSEMBLY_JARS" 1>&2
@@ -84,7 +93,7 @@ echo "Using GNOCCHI_MAIN=$GNOCCHI_MAIN"
 
 # Find spark-submit script
 if [ -z "$SPARK_HOME" ]; then
-  SPARK_SUBMIT=$(which spark-submit)
+  SPARK_SUBMIT=$(which spark-submit || echo)
 else
   SPARK_SUBMIT="$SPARK_HOME"/bin/spark-submit
 fi
@@ -96,14 +105,9 @@ echo "Using SPARK_SUBMIT=$SPARK_SUBMIT"
 
 # submit the job to Spark
 "$SPARK_SUBMIT" \
-  --class net.fnothaft.gnocchi.cli.GnocchiMain \
+  --class $GNOCCHI_MAIN \
   --conf spark.serializer=org.apache.spark.serializer.KryoSerializer \
   --conf spark.kryo.registrator=org.bdgenomics.adam.serialization.ADAMKryoRegistrator \
-  --conf spark.kryo.registrationRequired=false \
   "${SPARK_ARGS[@]}" \
   "$GNOCCHI_CLI_JAR" \
   "${GNOCCHI_ARGS[@]}"
-echo "Done submiting the args to GnochiMain.main()"
-  # org.bdgenomics.adam.serialization.ADAMKryoRegistrator
-  # This was the old one. net.fnothaft.gnocchi.GnocchiKryoRegistrator
-  # org.bdgenomics.adam.AdamKryoRegistrator
