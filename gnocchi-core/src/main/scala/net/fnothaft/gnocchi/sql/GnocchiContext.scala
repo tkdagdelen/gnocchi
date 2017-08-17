@@ -17,14 +17,18 @@
  */
 package net.fnothaft.gnocchi.sql
 
+import java.io.File
+
+import net.fnothaft.gnocchi.models.{ GnocchiModel, GnocchiModelMetaData }
+import net.fnothaft.gnocchi.models.linear.{ AdditiveLinearGnocchiModel, DominantLinearGnocchiModel }
+import net.fnothaft.gnocchi.models.logistic.{ AdditiveLogisticGnocchiModel, DominantLogisticGnocchiModel }
+import net.fnothaft.gnocchi.models.variant.VariantModel
 import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.bdgenomics.formats.avro.{ Contig, Variant }
 import org.bdgenomics.utils.misc.Logging
-import net.fnothaft.gnocchi.algorithms._
-import net.fnothaft.gnocchi.algorithms.siteregression._
-import net.fnothaft.gnocchi.models.variant.linear.AdditiveLinearVariantModel
-import net.fnothaft.gnocchi.models.variant.logistic.AdditiveLogisticVariantModel
+import net.fnothaft.gnocchi.models.variant.linear.{ AdditiveLinearVariantModel, DominantLinearVariantModel }
+import net.fnothaft.gnocchi.models.variant.logistic.{ AdditiveLogisticVariantModel, DominantLogisticVariantModel }
 import net.fnothaft.gnocchi.rdd.association._
 import net.fnothaft.gnocchi.sql.GnocchiContext._
 import org.bdgenomics.adam.rdd.ADAMContext._
@@ -38,6 +42,8 @@ import net.fnothaft.gnocchi.rdd.genotype.GenotypeState
 import net.fnothaft.gnocchi.rdd.phenotype.Phenotype
 import org.apache.hadoop.fs.Path
 import org.bdgenomics.adam.cli.Vcf2ADAM
+import java.io._
+import java.util
 
 object GnocchiContext {
 
@@ -80,6 +86,9 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
       c
     }).reduce(_ + _)
 
+    // is this correct? or should we change the column to nullable?
+    val phaseSetId: Column = when(filteredGtFrame("phaseSetId").isNull, 0).otherwise(filteredGtFrame("phaseSetId"))
+
     filteredGtFrame.select(filteredGtFrame("variant.contigName").as("contigName"),
       filteredGtFrame("variant.start").as("start"),
       filteredGtFrame("variant.end").as("end"),
@@ -87,7 +96,8 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
       filteredGtFrame("variant.alternateAllele").as("alt"),
       filteredGtFrame("sampleId"),
       genotypeState.as("genotypeState"),
-      missingGenotypes.as("missingGenotypes"))
+      missingGenotypes.as("missingGenotypes"),
+      phaseSetId.as("phaseSetId"))
   }
 
   def loadAndFilterGenotypes(genotypesPath: String,
@@ -122,104 +132,135 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
     val genotypes = sparkSession.read.format("parquet").load(parquetInputDestination)
 
     // transform the parquet-formatted genotypes into a dataFrame of GenotypeStates and convert to Dataset.
-    val genotypeStates = toGenotypeStateDataFrame(genotypes, ploidy, sparse = false)
+    val genotypeStates = toGenotypeStateDataFrame(genotypes, ploidy)
     // TODO: change convention so that generated variant name gets put in "names" rather than "contigName"
     val genoStatesWithNames = genotypeStates.select(
-      struct(concat($"contigName", lit("_"), $"end", lit("_"), $"alt") as "contigName",
-        genotypeStates("start"),
-        genotypeStates("end"),
-        genotypeStates("ref"),
-        genotypeStates("alt"),
-        genotypeStates("sampleId"),
-        genotypeStates("genotypeState"),
-        genotypeStates("missingGenotypes")).as("gs"))
+      concat($"contigName", lit("_"), $"end", lit("_"), $"alt") as "contigName",
+      genotypeStates("start"),
+      genotypeStates("end"),
+      genotypeStates("ref"),
+      genotypeStates("alt"),
+      genotypeStates("sampleId"),
+      genotypeStates("genotypeState"),
+      genotypeStates("missingGenotypes"),
+      genotypeStates("phaseSetId"))
+
+    val gsRdd = genoStatesWithNames.as[GenotypeState].rdd
 
     // mind filter
-    val sampleFilteredDF = filterSamples(genoStatesWithNames, mind)
+    val sampleFilteredRdd = filterSamples(gsRdd, mind)
 
     // maf and geno filters
-    val genoFilteredDF = filterVariants(sampleFilteredDF, geno, maf)
+    val genoFilteredRdd = filterVariants(sampleFilteredRdd, geno, maf)
 
-    val finalGenotypeStates = genoFilteredDF.filter($"gs.missingGenotypes" =!= lit(2)).select($"gs.*")
+    val finalGenotypeStatesRdd = genoFilteredRdd.filter(_.missingGenotypes != 2)
 
-    finalGenotypeStates.as[GenotypeState].rdd
-
+    finalGenotypeStatesRdd
   }
 
-  def filterSamples(genotypeStates: DataFrame, mind: Double): DataFrame = {
-    genotypeStates
-      .groupBy($"gs.sampleId")
-      .agg((sum($"gs.missingGenotypes") / (count($"gs") * lit(2))).alias("mind"),
-        collect_list($"gs").as("gsList"))
-      .filter($"mind" <= mind)
-      .select(explode($"gsList").as("gs"))
+  def filterSamples(genotypeStates: RDD[GenotypeState], mind: Double): RDD[GenotypeState] = {
+    val mindF = sc.broadcast(mind)
+
+    val samples = genotypeStates.map(gs => (gs.sampleId, gs.missingGenotypes, 2))
+      .keyBy(_._1)
+      .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3))
+      .map(keyed_tup => {
+        val (key, tuple) = keyed_tup
+        val (sampleId, missCount, total) = tuple
+        val mind = missCount.toDouble / total.toDouble
+        (sampleId, mind)
+      })
+      .filter(_._2 <= mindF.value)
+      .map(_._1)
+      .collect
+      .toSet
+    val samples_bc = sc.broadcast(samples)
+    val sampleFilteredRdd = genotypeStates.filter(gs => samples_bc.value contains gs.sampleId)
+
+    sampleFilteredRdd
   }
 
-  def filterVariants(genotypeStates: DataFrame, geno: Double, maf: Double): DataFrame = {
-    genotypeStates
-      .groupBy($"gs.contigName")
-      .agg(sum($"gs.missingGenotypes").as("missCount"),
-        (count($"gs") * lit(2)).as("total"),
-        sum($"gs.genotypeState").as("alleleCount"),
-        collect_list($"gs").as("gsList"))
-      .filter(($"missCount" / $"total") <= lit(geno))
-      .filter((lit(1) - ($"alleleCount" / ($"total" - $"missCount"))) >= lit(maf))
-      .filter(($"alleleCount" / ($"total" - $"missCount")) >= lit(maf))
-      .select(explode($"gsList").as("gs"))
+  def filterVariants(genotypeStates: RDD[GenotypeState], geno: Double, maf: Double): RDD[GenotypeState] = {
+    val genoF = sc.broadcast(geno)
+    val mafF = sc.broadcast(maf)
+
+    val genos = genotypeStates.map(gs => (gs.contigName, gs.missingGenotypes, gs.genotypeState, 2))
+      .keyBy(_._1)
+      .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3, tup1._4 + tup2._4))
+      .map(keyed_tup => {
+        val (key, tuple) = keyed_tup
+        val (contigName, missCount, alleleCount, total) = tuple
+        val geno = missCount.toDouble / total.toDouble
+        val maf = alleleCount.toDouble / (total - missCount).toDouble
+        (contigName, geno, maf, 1.0 - maf)
+      })
+      .filter(stats => stats._2 <= genoF.value && stats._3 >= mafF.value && stats._4 >= mafF.value)
+      .map(_._1)
+      .collect
+      .toSet
+    val genos_bc = sc.broadcast(genos)
+    val genoFilteredRdd = genotypeStates.filter(gs => genos_bc.value contains gs.contigName)
+
+    genoFilteredRdd
   }
 
   def loadPhenotypes(phenotypesPath: String,
                      phenoName: String,
                      oneTwo: Boolean,
                      includeCovariates: Boolean,
-                     covarFile: Option[String],
+                     covarPath: Option[String],
                      covarNames: Option[String]): RDD[Phenotype] = {
+
     logInfo("Loading phenotypes from %s.".format(phenotypesPath))
+    val phenotypesRDD = sc.textFile(phenotypesPath).persist()
 
-    val (phenotypes, header, indexList, delimiter) = loadFileAndCheckHeader(phenotypesPath, phenoName)
-    val primaryPhenoIndex = indexList(0)
+    var phenoHeader = phenotypesRDD.first().split('\t')
+    var delimiter = "\t"
 
-    if (includeCovariates) {
-      logInfo("Loading covariates from %s.".format(covarFile))
-      val (covariates, covarHeader, covarIndices, delimiter) = loadFileAndCheckHeader(covarFile.get, covarNames.get)
-      require(!covarNames.get.split(",").contains(phenoName), "One or more of the covariates has the same name as phenoName.")
-      combineAndFilterPhenotypes(oneTwo, phenotypes, header, primaryPhenoIndex, delimiter, Option(covariates), Option(covarHeader), Option(covarIndices))
-    } else {
-      combineAndFilterPhenotypes(oneTwo, phenotypes, header, primaryPhenoIndex, delimiter)
-    }
-  }
-
-  def loadFileAndCheckHeader(path: String, variablesString: String, isCovars: Boolean = false): (RDD[String], Array[String], Array[Int], String) = {
-    val lines = sc.textFile(path).persist()
-    val header = lines.first()
-    val len = header.split("\t").length
-    val delimiter = if (len >= 2) {
-      "\t"
-    } else {
-      " "
-    }
-    val columnLabels = if (delimiter == "\t") {
-      header.split("\t").zipWithIndex
-    } else {
-      header.split(" ").zipWithIndex
+    if (phenoHeader.length < 2) {
+      phenoHeader = phenotypesRDD.first().split(" ")
+      delimiter = " "
     }
 
-    val contents = if (isCovars) {
-      "Phenotypes"
-    } else {
-      "Covariates"
+    require(phenoHeader.length >= 2,
+      s"Phenotype files must have a minimum of 2 columns. The first column is a sampleID, " +
+        "the rest are phenotype values. The first row must be a header that contains labels.")
+    require(phenoHeader.contains(phenoName),
+      s"The primary phenotype, '$phenoName' does not exist in the specified file, '$phenotypesPath'")
+
+    var covariatesRDD: Option[RDD[String]] = None
+    var covariateHeader: Option[Array[String]] = None
+    var covariateIndices: Option[Array[Int]] = None
+
+    if (covarPath.isDefined) {
+      logInfo("Loading covariates from %s.".format(covarPath.get))
+      covariatesRDD = Some(sc.textFile(covarPath.get).persist())
+      var covariateNames = covarNames.get.split(",")
+
+      covariateHeader = Some(covariatesRDD.get.first().split('\t'))
+      var delimiter = "\t"
+
+      if (covariateHeader.get.length < 2) {
+        covariateHeader = Some(covariatesRDD.get.first().split(" "))
+        delimiter = " "
+      }
+
+      require(covariateNames.forall(name => covariateHeader.get.contains(name)),
+        "One of the covariates specified is missing from the covariate file '%s'".format(covarPath.get))
+      require(!covariateNames.contains(phenoName), "The primary phenotype cannot be a covariate.")
+
+      covariateIndices = Some(covariateNames.map(name => covariateHeader.get.indexOf(name)))
     }
 
-    require(columnLabels.length >= 2,
-      s"$contents file must have a minimum of 2 tab delimited columns. The first being some " +
-        "form of sampleID, the rest being phenotype values. A header with column labels must also be present.")
-
-    val variableNames = variablesString.split(",")
-    for (variable <- variableNames) {
-      val index = columnLabels.map(p => p._1).indexOf(variable)
-      require(index != -1, s"$variable doesn't match any of the phenotypes specified in the header.")
-    }
-    (lines, columnLabels.map(p => p._1), columnLabels.map(p => p._2), delimiter)
+    combineAndFilterPhenotypes(
+      oneTwo,
+      phenotypesRDD,
+      phenoHeader,
+      phenoHeader.indexOf(phenoName),
+      delimiter,
+      covariatesRDD,
+      covariateHeader,
+      covariateIndices)
   }
 
   /**
@@ -245,7 +286,7 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
 
     // TODO: NEED TO REQUIRE THAT ALL THE PHENOTYPES BE REPRESENTED BY NUMBERS.
 
-    val fullHeader = splitHeader ++ splitCovarHeader
+    val fullHeader = if (splitCovarHeader.isDefined) splitHeader ++ splitCovarHeader.get else splitHeader
 
     val indices = if (covarIndices.isDefined) {
       val mergedIndices = covarIndices.get.map(elem => { elem + splitHeader.length })
@@ -264,8 +305,8 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
         .filter(_._1 != "")
       data.cogroup(covarData).map(pair => {
         val (_, (phenosIterable, covariatesIterable)) = pair
-        val phenoArray = phenosIterable.toList.head
-        val covarArray = covariatesIterable.toList.head
+        val phenoArray = phenosIterable.head
+        val covarArray = covariatesIterable.head
         phenoArray ++ covarArray
       })
     } else {
@@ -280,6 +321,9 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
         indices.map(index => fullHeader(index)).mkString(","), p(0), indices.map(i => p(i).toDouble).toArray))
 
     phenotypes.unpersist()
+    if (covars.isDefined) {
+      covars.get.unpersist()
+    }
 
     finalData
   }
@@ -321,6 +365,47 @@ class GnocchiContext(@transient val sc: SparkContext) extends Serializable with 
       }).toArray
       (variant, obs).asInstanceOf[(Variant, Array[(Double, Array[Double])])]
     })
+  }
+
+  /**
+   *
+   * @param genotypes an rdd of [[net.fnothaft.gnocchi.rdd.genotype.GenotypeState]] objects to be regressed upon
+   * @param phenotypes an rdd of [[net.fnothaft.gnocchi.rdd.phenotype.Phenotype]] objects used as observations
+   * @param clipOrKeepState
+   * @return
+   */
+  def formatObservations(genotypes: RDD[GenotypeState],
+                         phenotypes: RDD[Phenotype],
+                         clipOrKeepState: GenotypeState => Double): RDD[((Variant, String, Int), Array[(Double, Array[Double])])] = {
+    val joinedGenoPheno = genotypes.keyBy(_.sampleId).join(phenotypes.keyBy(_.sampleId))
+
+    val keyedGenoPheno = joinedGenoPheno.map(keyGenoPheno => {
+      val (_, genoPheno) = keyGenoPheno
+      val (gs, pheno) = genoPheno
+      val variant = Variant.newBuilder()
+        .setContigName(gs.contigName)
+        .setStart(gs.start)
+        .setEnd(gs.end)
+        .setAlternateAllele(gs.alt)
+        .build()
+      //        .setNames(Seq(gs.contigName).toList).build
+      //      variant.setFiltersFailed(List(""))
+      ((variant, pheno.phenotype, gs.phaseSetId), genoPheno)
+    })
+      .groupByKey()
+
+    keyedGenoPheno.map(site => {
+      val ((variant, pheno, phaseSetId), observations) = site
+      val formattedObs = observations.map(p => {
+        val (genotypeState, phenotype) = p
+        (clipOrKeepState(genotypeState), phenotype.toDouble)
+      }).toArray
+      ((variant, pheno, phaseSetId), formattedObs)
+    })
+  }
+
+  def extractQCPhaseSetIds(genotypeStates: RDD[GenotypeState]): RDD[(Int, String)] = {
+    genotypeStates.map(g => (g.phaseSetId, g.contigName)).reduceByKey((a, b) => a)
   }
 
   def pairSamplesWithPhenotypes(rdd: RDD[GenotypeState],
