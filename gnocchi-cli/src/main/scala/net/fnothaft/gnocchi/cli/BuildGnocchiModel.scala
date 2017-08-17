@@ -67,13 +67,13 @@ class BuildGnocchiModel(protected val args: BuildGnocchiModelArgs) extends BDGSp
 
     // Load in phenotype data
     val phenotypes = sc.loadPhenotypes(args.phenotypes, args.phenoName, args.oneTwo,
-      args.includeCovariates, args.covarFile, args.covarNames)
+      args.includeCovariates, Option(args.covarFile), Option(args.covarNames))
 
     // Select variant Ids for variants to use as quality control
     val phaseSetsList = sc.extractQCPhaseSetIds(genotypeStates)
     val qcVariantIds = phaseSetsList.map(kv => kv._2)
 
-    val gnocchiModelMetaData = buildMetaData(phenotypes, args.errorThreshold, args.associationType, args.covarNames, args.phenoName)
+    val gnocchiModelMetaData = buildMetaData(phenotypes, args.errorThreshold, args.associationType, Option(args.covarNames), args.phenoName)
 
     // build GnocchiModel
     val gnocchiModel = args.associationType match {
