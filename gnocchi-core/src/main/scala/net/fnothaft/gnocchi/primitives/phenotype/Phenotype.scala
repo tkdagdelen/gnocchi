@@ -24,12 +24,12 @@ package net.fnothaft.gnocchi.primitives.phenotype
 
 case class Phenotype(sampleId: String,
                      phenotype: String,
-                     covariates: Array[Double]) extends Product {
-  def toDouble: Array[Double] = covariates
+                     value: Array[Double]) extends Product {
+  def toDouble: Array[Double] = value
 }
 
-final case class BetterPhenotype(sampleId: String,
-                                 primaryPheno: Double,
-                                 covars: Double*) extends Product {
-  def toDouble: Array[Double] = covars.toArray
+case class BetterPhenotype(sampleId: String,
+                           phenotype: String,
+                           covariates: List[Double]) extends Product {
+  def toDouble: List[Double] = covariates
 }

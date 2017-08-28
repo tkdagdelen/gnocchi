@@ -14,7 +14,8 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SparkSession }
-import org.apache.spark.sql.functions.{ concat, lit, when, array }
+import org.apache.spark.sql.functions.{ concat, lit, when, array, typedLit }
+import org.apache.spark.sql.types.{ ArrayType, DoubleType }
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.bdgenomics.formats.avro.{ Contig, Variant }
 import org.bdgenomics.utils.misc.Logging
@@ -180,8 +181,8 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
                      primaryID: String,
                      phenoName: String,
                      delimiter: String,
-                     covarPath: Option[String],
-                     covarNames: Option[List[String]]): DataFrame = {
+                     covarPath: Option[String] = None,
+                     covarNames: Option[List[String]] = None): Dataset[BetterPhenotype] = {
 
     logInfo("Loading phenotypes from %s.".format(phenotypesPath))
 
@@ -192,6 +193,7 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
       .option("delimiter", delimiter)
       .load(phenotypesPath)
       .select(primaryID, phenoName)
+      .toDF("sampleId", "phenotype")
       .coalesce(1)
 
     val covariateDF = if (covarPath.isDefined) {
@@ -202,21 +204,21 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
           .option("delimiter", delimiter)
           .load(covarPath.get)
           .select(primaryID, covarNames.get: _*)
+          .toDF("sampleId" :: covarNames.get: _*)
           .coalesce(1))
     } else {
       None
     }
 
     val phenoCovarDF = if (covariateDF.isDefined) {
-      phenotypesDF.join(covariateDF.get, Seq(primaryID))
-      phenotypesDF.withColumn("covariates", array(phenotypesDF.select(covarNames.get.head, covarNames.get.drop(1): _*)))
+      val joinedDF = phenotypesDF.join(covariateDF.get, Seq("sampleId"))
+      joinedDF.withColumn("covariates", array(covarNames.get.head, covarNames.get.drop(1): _*))
+        .select("sampleId", "phenotype", "covariates")
     } else {
-      phenotypesDF
+      phenotypesDF.withColumn("covariates", lit(null).cast(ArrayType(DoubleType)))
     }
 
-    phenoCovarDF.show()
-
-    phenoCovarDF
+    phenoCovarDF.as[BetterPhenotype]
 
     //    phenoCovarDF.as[BetterPhenotype]
 

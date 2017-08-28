@@ -163,7 +163,7 @@ class GnocchiContextSuite extends GnocchiFunSuite {
   //    }
   //  }
 
-  sparkTest("formatObservations should return Array or (genotype, Array[Phenotypes + covariates])") {
+  ignore("formatObservations should return Array or (genotype, Array[Phenotypes + covariates])") {
     val gc = new GnocchiContext(sc)
 
     val genotypeState1 = new Genotype("geno1", 0L, 1L, "A", "G", "sample1", 0, 0, 0)
