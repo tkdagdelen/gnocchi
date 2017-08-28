@@ -14,7 +14,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SparkSession }
-import org.apache.spark.sql.functions.{ concat, lit, when }
+import org.apache.spark.sql.functions.{ concat, lit, when, array }
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.bdgenomics.formats.avro.{ Contig, Variant }
 import org.bdgenomics.utils.misc.Logging
@@ -209,6 +209,7 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
 
     val phenoCovarDF = if (covariateDF.isDefined) {
       phenotypesDF.join(covariateDF.get, Seq(primaryID))
+      phenotypesDF.withColumn("covariates", array(phenotypesDF.select(covarNames.get.head, covarNames.get.drop(1): _*)))
     } else {
       phenotypesDF
     }

@@ -22,10 +22,10 @@ package net.fnothaft.gnocchi.primitives.phenotype
   the names of all the phenotypes, separated by spaces (again, the first is the phenotype being regressed and the rest are covariates)
 */
 
-case class Phenotype(phenotype: String,
-                     sampleId: String,
-                     value: Array[Double]) extends Product {
-  def toDouble: Array[Double] = value
+case class Phenotype(sampleId: String,
+                     phenotype: String,
+                     covariates: Array[Double]) extends Product {
+  def toDouble: Array[Double] = covariates
 }
 
 final case class BetterPhenotype(sampleId: String,
