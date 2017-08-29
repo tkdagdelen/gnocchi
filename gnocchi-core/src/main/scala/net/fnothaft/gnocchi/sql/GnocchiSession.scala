@@ -172,18 +172,18 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
       .option("delimiter", "\t")
       .csv(stringVariantDS)
 
+    // drop the variant level metadata
     val samples = variantDF.schema.fields.drop(9).map(x => x.name)
 
-//    val genotypeStateConverter: String => GenotypeState = GenotypeState(_)
-//    val converterUDF = udf(genotypeStateConverter)
-//
-//    val columnsTomap = variantDF.select(samples.head, samples.tail: _*).columns
-//
-//    var tempdf = variantDF
-//    columnsTomap.map(column => {tempdf = tempdf.withColumn(column, converterUDF(col(column)))})
+    val genotypeStateConverter: String => GenotypeState = GenotypeState(_)
+    val converterUDF = udf(genotypeStateConverter)
 
+    val columnsTomap = variantDF.select(samples.head, samples.tail: _*).columns
 
-    val formattedVariantDS = variantDF.withColumn("samples", array(samples.head, samples.tail: _*))
+    var tempdf = variantDF
+    columnsTomap.map(column => { tempdf = tempdf.withColumn(column, converterUDF(col(column))) })
+
+    val formattedVariantDS = tempdf.withColumn("samples", array(samples.head, samples.tail: _*))
       .drop(samples: _*)
       .toDF("chromosome",
         "position",

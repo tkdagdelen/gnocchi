@@ -11,4 +11,4 @@ case class CalledVariant(chromosome: Int,
                          filter: String,
                          info: String,
                          format: String,
-                         samples: List[String]) extends Product
+                         samples: List[GenotypeState]) extends Product
