@@ -1,4 +1,4 @@
-#Schemas
+# Schemas
 
 ## Genotypic Dataset
 Schema:
@@ -45,7 +45,7 @@ Example:
 +---------+----------+--------+---------------+---------------+------------+------+----+------+--------------------+
 ```
 
-####Overview 
+#### Overview 
 This schema comes directly from the VCF file format. Currently have chosen to not support
 the key-value tags that are included at the top of the VCF. **This is subject to change**. 
 Based off of what features are to be supported in the future there may be 
@@ -54,7 +54,7 @@ reasons to include the key-value tags in the genotypic dataset.
 Our genotypic dataset that will be used throughout gnocchi is then represented as a 
 `Dataset[CalledVariant]` object
 
-####Rationale
+#### Rationale
 It is important to store the variant level information somewhere in the 
 dataset, but it is common to an entire row. We can save on space if we 
 keep the row structure of data and do not copy the common variant metadata
