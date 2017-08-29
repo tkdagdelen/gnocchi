@@ -164,6 +164,8 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
 
   def loadGenotypes(genotypesPath: String): Dataset[CalledVariant] = {
 
+    // ToDo: Deal with multiple Alts
+
     val stringVariantDS = sparkSession.read.textFile(genotypesPath).filter(row => !row.startsWith("##"))
 
     val variantDF = sparkSession.read.format("csv")
@@ -175,19 +177,21 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     // drop the variant level metadata
     val samples = variantDF.schema.fields.drop(9).map(x => x.name)
 
-    val genotypeStateConverter: String => GenotypeState = GenotypeState(_)
-    val converterUDF = udf(genotypeStateConverter)
+    val groupedSamples = variantDF
+      .select($"ID", array(samples.head, samples.tail: _*))
+      .as[(String, Array[String])]
+    val typedGroupedSamples = groupedSamples
+      .map(row => (row._1, row._2.map(x => GenotypeState(x))))
+      .toDF("ID", "samples")
+      .as[(String, Array[GenotypeState])]
 
-    val columnsTomap = variantDF.select(samples.head, samples.tail: _*).columns
+    val formattedRawDS = variantDF.drop(samples: _*).join(typedGroupedSamples, "ID")
 
-    var tempdf = variantDF
-    columnsTomap.map(column => { tempdf = tempdf.withColumn(column, converterUDF(col(column))) })
-
-    val formattedVariantDS = tempdf.withColumn("samples", array(samples.head, samples.tail: _*))
-      .drop(samples: _*)
-      .toDF("chromosome",
-        "position",
+    val formattedVariantDS =
+      formattedRawDS.toDF(
         "uniqueID",
+        "chromosome",
+        "position",
         "referenceAllele",
         "alternateAllele",
         "qualityScore",
