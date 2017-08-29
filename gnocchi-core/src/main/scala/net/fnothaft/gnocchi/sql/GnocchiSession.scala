@@ -8,13 +8,14 @@ import net.fnothaft.gnocchi.models.logistic.{ AdditiveLogisticGnocchiModel, Domi
 import net.fnothaft.gnocchi.models.variant.QualityControlVariantModel
 import net.fnothaft.gnocchi.models.variant.linear.{ AdditiveLinearVariantModel, DominantLinearVariantModel }
 import net.fnothaft.gnocchi.models.variant.logistic.{ AdditiveLogisticVariantModel, DominantLogisticVariantModel }
-import net.fnothaft.gnocchi.primitives.genotype.Genotype
+import net.fnothaft.gnocchi.primitives.genotype.{ Genotype, GenotypeState }
 import net.fnothaft.gnocchi.primitives.phenotype.{ BetterPhenotype, Phenotype }
+import net.fnothaft.gnocchi.primitives.variants.{ CalledVariant }
 import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SparkSession }
-import org.apache.spark.sql.functions.{ concat, lit, when, array, typedLit }
+import org.apache.spark.sql.functions.{ concat, lit, when, array, typedLit, udf, col }
 import org.apache.spark.sql.types.{ ArrayType, DoubleType }
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.bdgenomics.formats.avro.{ Contig, Variant }
@@ -160,6 +161,43 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
   //
   //    genoFilteredRdd
   //  }
+
+  def loadGenotypes(genotypesPath: String): Dataset[CalledVariant] = {
+
+    val stringVariantDS = sparkSession.read.textFile(genotypesPath).filter(row => !row.startsWith("##"))
+
+    val variantDF = sparkSession.read.format("csv")
+      .option("header", "true")
+      .option("inferSchema", "true")
+      .option("delimiter", "\t")
+      .csv(stringVariantDS)
+
+    val samples = variantDF.schema.fields.drop(9).map(x => x.name)
+
+//    val genotypeStateConverter: String => GenotypeState = GenotypeState(_)
+//    val converterUDF = udf(genotypeStateConverter)
+//
+//    val columnsTomap = variantDF.select(samples.head, samples.tail: _*).columns
+//
+//    var tempdf = variantDF
+//    columnsTomap.map(column => {tempdf = tempdf.withColumn(column, converterUDF(col(column)))})
+
+
+    val formattedVariantDS = variantDF.withColumn("samples", array(samples.head, samples.tail: _*))
+      .drop(samples: _*)
+      .toDF("chromosome",
+        "position",
+        "uniqueID",
+        "referenceAllele",
+        "alternateAllele",
+        "qualityScore",
+        "filter",
+        "info",
+        "format",
+        "samples")
+
+    formattedVariantDS.as[CalledVariant]
+  }
 
   /**
    *
