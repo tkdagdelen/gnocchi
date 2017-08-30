@@ -72,7 +72,7 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
   val sampleIds = List("sample1", "sample2", "sample3", "sample4")
   val variant1Genotypes = List("./.", "./.", "./.", "1/1")
   val variant2Genotypes = List("./.", "./.", "1/1", "1/1")
-  val variant3Genotypes = List("./.", "1/1", "1/1", "1/1")
+  val variant3Genotypes = List("./.", "1/0", "1/1", "1/1")
   val variant4Genotypes = List("./.", "1/1", "1/1", "1/1")
   val variant5Genotypes = List("./.", "1/1", "1/1", "1/1")
   val variant1CalledVariant = makeCalledVariant(sampleIds, variant1Genotypes)
@@ -140,6 +140,35 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     targetcalledVariantsDS.show()
     assert(filteredSamples === targetcalledVariantsDS, "Filtered dataset did not match expected dataset.")
   }
+
+  sparkTest("sc.filterVariants should filter out variants below MAF threshold") {
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val mafThreshold = 0.3
+    val genotypingRateThreshold = 0.0
+    val calledVariantsDS = sparkSession.createDataFrame(List(variant1CalledVariant, variant2CalledVariant,
+      variant3CalledVariant, variant4CalledVariant, variant5CalledVariant)).as[CalledVariant]
+    val filteredVariantsDS = sc.filterVariants(calledVariantsDS, genotypingRateThreshold, mafThreshold)
+    // only one variant (variant3) should pass the filter
+    filteredVariantsDS.show
+    assert(filteredVariantsDS.collect.toList.equals(List(variant3CalledVariant)), "sc.filterVariants did not filter" +
+      "on MAF correctly")
+  }
+
+  sparkTest("sc.filterVariants should filter out variants above genotyping rate threshold") {
+    val sparkSession = SparkSession.builder().getOrCreate()
+    import sparkSession.implicits._
+    val mafThreshold = 0.0
+    val genotypingRateThreshold = 0.5
+    val calledVariantsDS = sparkSession.createDataFrame(List(variant1CalledVariant, variant2CalledVariant,
+      variant3CalledVariant, variant4CalledVariant, variant5CalledVariant)).as[CalledVariant]
+    val filteredVariantsDS = sc.filterVariants(calledVariantsDS, genotypingRateThreshold, mafThreshold)
+    // only variants 3, 4, and 5 should pass the filter
+    filteredVariantsDS.show()
+    assert(filteredVariantsDS.collect.toList.equals(List(variant3CalledVariant, variant4CalledVariant,
+      variant5CalledVariant)), "sc.filterVariants did not filter on genotyping rate correctly")
+  }
+
   //  ignore("filterSamples should filter on mind if mind is greater than 0 but less than 1") {
   //    val allMissingSample = (1 to 10).map(makeGenotypeState(_, "sample1", 0, 2))
   //    val eachHalfMissingSample = (1 to 10).map(makeGenotypeState(_, "sample2", 1, 1))
