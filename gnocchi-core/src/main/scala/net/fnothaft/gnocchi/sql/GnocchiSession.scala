@@ -149,30 +149,6 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     mafFiltered
   }
 
-  //  def filterVariants(genotypeStates: DataFrame, geno: Option[Double], maf: Option[Double]): DataFrame = {
-  //    val genoF = sc.broadcast(geno)
-  //    val mafF = sc.broadcast(maf)
-  //
-  //    val genos = genotypeStates.map(gs => (gs.contigName, gs.missingGenotypes, gs.genotypeState, 2))
-  //      .keyBy(_._1)
-  //      .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3, tup1._4 + tup2._4))
-  //      .map(keyed_tup => {
-  //        val (key, tuple) = keyed_tup
-  //        val (contigName, missCount, alleleCount, total) = tuple
-  //        val geno = missCount.toDouble / total.toDouble
-  //        val maf = alleleCount.toDouble / (total - missCount).toDouble
-  //        (contigName, geno, maf, 1.0 - maf)
-  //      })
-  //      .filter(stats => stats._2 <= genoF.value && stats._3 >= mafF.value && stats._4 >= mafF.value)
-  //      .map(_._1)
-  //      .collect
-  //      .toSet
-  //    val genos_bc = sc.broadcast(genos)
-  //    val genoFilteredRdd = genotypeStates.filter(gs => genos_bc.value contains gs.contigName)
-  //
-  //    genoFilteredRdd
-  //  }
-
   def loadGenotypes(genotypesPath: String): Dataset[CalledVariant] = {
 
     // ToDo: Deal with multiple Alts
@@ -197,8 +173,7 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
 
     val formattedRawDS = variantDF.drop(samples: _*).join(typedGroupedSamples, "ID")
 
-    val formattedVariantDS =
-      formattedRawDS.toDF(
+    val formattedVariantDS = formattedRawDS.toDF(
         "uniqueID",
         "chromosome",
         "position",
@@ -208,7 +183,8 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
         "filter",
         "info",
         "format",
-        "samples")
+        "samples"
+    )
 
     formattedVariantDS.as[CalledVariant]
   }
@@ -224,7 +200,6 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
    * @param phenoName
    * @param oneTwo
    * @param delimiter
-   * @param includeCovariates
    * @param covarPath
    * @param covarNames
    * @return
@@ -234,96 +209,60 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
                      phenoName: String,
                      delimiter: String,
                      covarPath: Option[String] = None,
-                     covarNames: Option[List[String]] = None): Dataset[BetterPhenotype] = {
+                     covarNames: Option[List[String]] = None): Map[String, BetterPhenotype] = {
 
     logInfo("Loading phenotypes from %s.".format(phenotypesPath))
 
     // ToDo: keeps these operations on one machine, because phenotypes are small.
-    val phenotypesDF = sparkSession.read.format("csv")
+    val prelimPhenotypesDF = sparkSession.read.format("csv")
       .option("header", "true")
       .option("inferSchema", "true")
       .option("delimiter", delimiter)
       .load(phenotypesPath)
+
+    val phenoHeader = prelimPhenotypesDF.schema.fields.map(_.name)
+
+    require(phenoHeader.contains(phenoName),
+      s"The primary phenotype, '$phenoName' does not exist in the specified file, '$phenotypesPath'")
+    require(phenoHeader.contains(primaryID),
+      s"The primary sample ID, '$primaryID' does not exist in the specified file, '$phenotypesPath'")
+
+    val phenotypesDF = prelimPhenotypesDF
       .select(primaryID, phenoName)
       .toDF("sampleId", "phenotype")
-      .coalesce(1)
 
     val covariateDF = if (covarPath.isDefined) {
-      Option(
-        sparkSession.read.format("csv")
-          .option("header", "true")
-          .option("inferSchema", "true")
-          .option("delimiter", delimiter)
-          .load(covarPath.get)
-          .select(primaryID, covarNames.get: _*)
-          .toDF("sampleId" :: covarNames.get: _*)
-          .coalesce(1))
+      val prelimCovarDF = sparkSession.read.format("csv")
+        .option("header", "true")
+        .option("inferSchema", "true")
+        .option("delimiter", delimiter)
+        .load(covarPath.get)
+
+      val covarHeader = prelimCovarDF.schema.fields.map(_.name)
+
+      require(covarNames.get.forall(covarHeader.contains(_)),
+        s"One of the covariates, '%s' does not exist in the specified file, '%s'".format(covarNames.get.toString(), covarPath.get))
+      require(covarHeader.contains(primaryID),
+        s"The primary sample ID, '$primaryID' does not exist in the specified file, '%s'".format(covarPath.get))
+      require(!covarNames.get.contains(phenoName),
+        s"The primary phenotype, '$phenoName' cannot be listed as a covariate. '%s'".format(covarNames.get.toString()))
+
+      Option(prelimCovarDF
+        .select(primaryID, covarNames.get: _*)
+        .toDF("sampleId" :: covarNames.get: _*))
     } else {
       None
     }
 
     val phenoCovarDF = if (covariateDF.isDefined) {
       val joinedDF = phenotypesDF.join(covariateDF.get, Seq("sampleId"))
-      joinedDF.withColumn("covariates", array(covarNames.get.head, covarNames.get.drop(1): _*))
+      joinedDF.withColumn("covariates", array(covarNames.get.head, covarNames.get.tail: _*))
         .select("sampleId", "phenotype", "covariates")
     } else {
       phenotypesDF.withColumn("covariates", lit(null).cast(ArrayType(DoubleType)))
     }
 
-    phenoCovarDF.as[BetterPhenotype]
-
-    //    phenoCovarDF.as[BetterPhenotype]
-
-    //    phenoCovarDF.collect.map(row => {
-    //      val rowList = row.toSeq.toList
-    //      val phenos = rowList.drop(1).map(x => parseInt.toDouble).toArray
-    //      Phenotype(phenoName, rowList.head.asInstanceOf[String], phenos)
-    //    }).toList
-
-    //    phenoCovarDF.withColumn("phenotypes", Phenotype(
-    //      phenoName,
-    //      phenoCovarDF("IID"),
-    //      phenoCovarDF(phenoName),
-    //      List)
-    //    require(phenoHeader.length >= 2,
-    //      s"Phenotype files must have a minimum of 2 columns. The first column is a sampleID, " +
-    //        "the rest are phenotype values. The first row must be a header that contains labels.")
-    //    require(phenoHeader.contains(phenoName),
-    //      s"The primary phenotype, '$phenoName' does not exist in the specified file, '$phenotypesPath'")
-
-    //    var covariatesRDD: Option[RDD[String]] = None
-    //    var covariateHeader: Option[Array[String]] = None
-    //    var covariateIndices: Option[Array[Int]] = None
-    //
-    //    if (covarPath.isDefined) {
-    //      logInfo("Loading covariates from %s.".format(covarPath.get))
-    //      covariatesRDD = Some(sc.textFile(covarPath.get).persist())
-    //      var covariateNames = covarNames.get.split(",")
-    //
-    //      covariateHeader = Some(covariatesRDD.get.first().split('\t'))
-    //      var delimiter = "\t"
-    //
-    //      if (covariateHeader.get.length < 2) {
-    //        covariateHeader = Some(covariatesRDD.get.first().split(" "))
-    //        delimiter = " "
-    //      }
-    //
-    //      require(covariateNames.forall(name => covariateHeader.get.contains(name)),
-    //        "One of the covariates specified is missing from the covariate file '%s'".format(covarPath.get))
-    //      require(!covariateNames.contains(phenoName), "The primary phenotype cannot be a covariate.")
-    //
-    //      covariateIndices = Some(covariateNames.map(name => covariateHeader.get.indexOf(name)))
-    //    }
-    //
-    //    combineAndFilterPhenotypes(
-    //      oneTwo,
-    //      phenotypesRDD,
-    //      phenoHeader,
-    //      phenoHeader.indexOf(phenoName),
-    //      delimiter,
-    //      covariatesRDD,
-    //      covariateHeader,
-    //      covariateIndices)
+    phenoCovarDF.as[BetterPhenotype].collect().map(x => (x.sampleId, x)).toMap
   }
 
   //  /**
