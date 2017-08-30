@@ -26,6 +26,8 @@ import net.fnothaft.gnocchi.primitives.variants.CalledVariant
 import org.apache.spark.sql.{ Dataset, SparkSession }
 import org.apache.spark
 
+import scala.util.Random
+
 class GnocchiSessionSuite extends GnocchiFunSuite {
 
   import GnocchiSession._
@@ -41,6 +43,7 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
       " Dataset[CalledVariant]")
 
   }
+
   sparkTest("sc.loadGenotypes should map fields correctly") {
     val genotypes = sc.loadGenotypes(genoPath)
     val firstCalledVariant = genotypes.collect.head
@@ -64,9 +67,9 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     GenotypeState(id, gs)
   }
 
-  private def makeCalledVariant(sampleIds: List[String], genotypeStates: List[String]): CalledVariant = {
+  private def makeCalledVariant(uid: Int, sampleIds: List[String], genotypeStates: List[String]): CalledVariant = {
     val samples = sampleIds.zip(genotypeStates).map(idGs => makeGenotypeState(idGs._1, idGs._2))
-    CalledVariant(1, 1234, "rs1234", "A", "G", 60, "PASS", ".", "GT", samples)
+    CalledVariant(1, 1234, uid.toString(), "A", "G", 60, "PASS", ".", "GT", samples)
   }
 
   val sampleIds = List("sample1", "sample2", "sample3", "sample4")
@@ -75,11 +78,11 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
   val variant3Genotypes = List("./.", "1/1", "1/1", "1/1")
   val variant4Genotypes = List("./.", "1/1", "1/1", "1/1")
   val variant5Genotypes = List("./.", "1/1", "1/1", "1/1")
-  val variant1CalledVariant = makeCalledVariant(sampleIds, variant1Genotypes)
-  val variant2CalledVariant = makeCalledVariant(sampleIds, variant2Genotypes)
-  val variant3CalledVariant = makeCalledVariant(sampleIds, variant3Genotypes)
-  val variant4CalledVariant = makeCalledVariant(sampleIds, variant4Genotypes)
-  val variant5CalledVariant = makeCalledVariant(sampleIds, variant5Genotypes)
+  val variant1CalledVariant = makeCalledVariant(1, sampleIds, variant1Genotypes)
+  val variant2CalledVariant = makeCalledVariant(2, sampleIds, variant2Genotypes)
+  val variant3CalledVariant = makeCalledVariant(3, sampleIds, variant3Genotypes)
+  val variant4CalledVariant = makeCalledVariant(4, sampleIds, variant4Genotypes)
+  val variant5CalledVariant = makeCalledVariant(5, sampleIds, variant5Genotypes)
 
   sparkTest("filterSamples should not filter any samples if mind >= 1 since missingness " +
     "should never exceed 1.0") {
@@ -105,11 +108,11 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     val targetvariant3Genotypes = List("1/1", "1/1")
     val targetvariant4Genotypes = List("1/1", "1/1")
     val targetvariant5Genotypes = List("1/1", "1/1")
-    val targetvariant1CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant1Genotypes)
-    val targetvariant2CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant2Genotypes)
-    val targetvariant3CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant3Genotypes)
-    val targetvariant4CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant4Genotypes)
-    val targetvariant5CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant5Genotypes)
+    val targetvariant1CalledVariant = makeCalledVariant(1, targetFilteredSamples, targetvariant1Genotypes)
+    val targetvariant2CalledVariant = makeCalledVariant(2, targetFilteredSamples, targetvariant2Genotypes)
+    val targetvariant3CalledVariant = makeCalledVariant(3, targetFilteredSamples, targetvariant3Genotypes)
+    val targetvariant4CalledVariant = makeCalledVariant(4, targetFilteredSamples, targetvariant4Genotypes)
+    val targetvariant5CalledVariant = makeCalledVariant(5, targetFilteredSamples, targetvariant5Genotypes)
     val targetcalledVariantsDS = sparkSession.createDataFrame(List(targetvariant1CalledVariant, targetvariant2CalledVariant,
       targetvariant3CalledVariant, targetvariant4CalledVariant, targetvariant5CalledVariant)).as[CalledVariant]
     filteredSamples.show()
@@ -129,11 +132,11 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     val targetvariant3Genotypes = List("1/1")
     val targetvariant4Genotypes = List("1/1")
     val targetvariant5Genotypes = List("1/1")
-    val targetvariant1CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant1Genotypes)
-    val targetvariant2CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant2Genotypes)
-    val targetvariant3CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant3Genotypes)
-    val targetvariant4CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant4Genotypes)
-    val targetvariant5CalledVariant = makeCalledVariant(targetFilteredSamples, targetvariant5Genotypes)
+    val targetvariant1CalledVariant = makeCalledVariant(1, targetFilteredSamples, targetvariant1Genotypes)
+    val targetvariant2CalledVariant = makeCalledVariant(2, targetFilteredSamples, targetvariant2Genotypes)
+    val targetvariant3CalledVariant = makeCalledVariant(3, targetFilteredSamples, targetvariant3Genotypes)
+    val targetvariant4CalledVariant = makeCalledVariant(4, targetFilteredSamples, targetvariant4Genotypes)
+    val targetvariant5CalledVariant = makeCalledVariant(5, targetFilteredSamples, targetvariant5Genotypes)
     val targetcalledVariantsDS = sparkSession.createDataFrame(List(targetvariant1CalledVariant, targetvariant2CalledVariant,
       targetvariant3CalledVariant, targetvariant4CalledVariant, targetvariant5CalledVariant)).as[CalledVariant]
     filteredSamples.show()

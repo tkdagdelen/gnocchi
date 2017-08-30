@@ -128,11 +128,11 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     val summed = filtered.drop("uniqueID").groupBy().sum().toDF(sampleIds: _*)
     val count = filtered.count()
 
-    val missingness = summed.select(sampleIds.map(sampleId => summed(sampleId) / ploidy * count as sampleId): _*)
+    val missingness = summed.select(sampleIds.map(sampleId => summed(sampleId) / (ploidy * count) as sampleId): _*)
     val plainMissingness = missingness.select(array(sampleIds.head, sampleIds.tail: _*)).as[Array[Double]].head
 
     val samplesWithMissingness = sampleIds.zip(plainMissingness)
-    val keepers = samplesWithMissingness.filter(x => x._2 < mind).map(x => x._1)
+    val keepers = samplesWithMissingness.filter(x => x._2 <= mind).map(x => x._1)
 
     val filteredDF = separated.select($"uniqueID", array(keepers.head, keepers.tail: _*)).toDF("uniqueID", "samples").as[(String, Array[String])]
 
@@ -174,17 +174,16 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     val formattedRawDS = variantDF.drop(samples: _*).join(typedGroupedSamples, "ID")
 
     val formattedVariantDS = formattedRawDS.toDF(
-        "uniqueID",
-        "chromosome",
-        "position",
-        "referenceAllele",
-        "alternateAllele",
-        "qualityScore",
-        "filter",
-        "info",
-        "format",
-        "samples"
-    )
+      "uniqueID",
+      "chromosome",
+      "position",
+      "referenceAllele",
+      "alternateAllele",
+      "qualityScore",
+      "filter",
+      "info",
+      "format",
+      "samples")
 
     formattedVariantDS.as[CalledVariant]
   }
