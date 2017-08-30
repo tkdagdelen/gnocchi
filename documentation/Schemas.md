@@ -15,6 +15,7 @@ root
  |-- format: string (nullable = true)
  |-- samples: array (nullable = true)
  |    |-- element: struct (containsNull = true)
+ |    |    |-- sampleID: string (nullable = true)
  |    |    |-- value: string (nullable = true)
 ```
 
@@ -37,11 +38,11 @@ Example:
 +---------+----------+--------+---------------+---------------+------------+------+----+------+--------------------+
 | uniqueID|chromosome|position|referenceAllele|alternateAllele|qualityScore|filter|info|format|             samples|
 +---------+----------+--------+---------------+---------------+------------+------+----+------+--------------------+
-|rs3131974|         1|  752724|              C|              T|          60|  PASS|   .|    GT|[[0/1], [0/1], [0...|
-|rs3131975|         1|  752725|              G|              A|          60|  PASS|   .|    GT|[[0/0], [0/0], [0...|
-|rs3131973|         1|  752723|              C|              G|          60|  PASS|   .|    GT|[[0/1], [0/0], [0...|
-|rs3131972|         1|  752722|              A|              T|          60|  PASS|   .|    GT|[[1/1], [1/1], [1...|
-|rs3131971|         1|  752721|              A|              G|          60|  PASS|   .|    GT|[[0/0], [0/0], [0...|
+|rs3131974|         1|  752724|              C|              T|          60|  PASS|   .|    GT|[[sample1,0/1], [...|
+|rs3131975|         1|  752725|              G|              A|          60|  PASS|   .|    GT|[[sample1,0/0], [...|
+|rs3131973|         1|  752723|              C|              G|          60|  PASS|   .|    GT|[[sample1,0/1], [...|
+|rs3131972|         1|  752722|              A|              T|          60|  PASS|   .|    GT|[[sample1,1/1], [...|
+|rs3131971|         1|  752721|              A|              G|          60|  PASS|   .|    GT|[[sample1,0/0], [...|
 +---------+----------+--------+---------------+---------------+------------+------+----+------+--------------------+
 ```
 
@@ -59,3 +60,7 @@ It is important to store the variant level information somewhere in the
 dataset, but it is common to an entire row. We can save on space if we 
 keep the row structure of data and do not copy the common variant metadata
 into each `GenotypeState` object (as it was previously).
+
+## Phenotypic Dataset
+#### Overview 
+The phenotype information is stored as a scala `Map` object of 

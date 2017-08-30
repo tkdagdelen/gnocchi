@@ -15,7 +15,7 @@ import org.apache.hadoop.fs.Path
 import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{ Column, DataFrame, Dataset, SparkSession }
-import org.apache.spark.sql.functions.{ concat, lit, when, array, typedLit, udf, col }
+import org.apache.spark.sql.functions.{ concat, lit, when, array, typedLit, udf, col, sum }
 import org.apache.spark.sql.types.{ ArrayType, DoubleType }
 import org.bdgenomics.adam.cli.Vcf2ADAM
 import org.bdgenomics.formats.avro.{ Contig, Variant }
@@ -90,53 +90,76 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
   //    //    finalGenotypeStatesRdd
   //  }
 
-  private def toGenotypeStateDataFrame(gtFrame: DataFrame, ploidy: Int): DataFrame = {
-    // generate expression
-    val genotypeState = (0 until ploidy).map(i => {
-      val c: Column = when(gtFrame("alleles").getItem(i) === "REF", 1).otherwise(0)
-      c
-    }).reduce(_ + _)
-
-    val missingGenotypes = (0 until ploidy).map(i => {
-      val c: Column = when(gtFrame("alleles").getItem(i) === "NO_CALL", 1).otherwise(0)
-      c
-    }).reduce(_ + _)
-
-    // is this correct? or should we change the column to nullable?
-    val phaseSetId: Column = when(gtFrame("phaseSetId").isNull, 0).otherwise(gtFrame("phaseSetId"))
-
-    gtFrame.select(gtFrame("variant.contigName").as("contigName"),
-      gtFrame("variant.start").as("start"),
-      gtFrame("variant.end").as("end"),
-      gtFrame("variant.referenceAllele").as("ref"),
-      gtFrame("variant.alternateAllele").as("alt"),
-      gtFrame("sampleId"),
-      genotypeState.as("genotypeState"),
-      missingGenotypes.as("missingGenotypes"),
-      phaseSetId.as("phaseSetId"))
-  }
-
-  //  def filterSamples(genotype: RDD[Genotype], mind: Option[Double]): RDD[Genotype] = {
-  //    val mindF = sc.broadcast(mind)
+  //  private def toGenotypeStateDataFrame(gtFrame: DataFrame, ploidy: Int): DataFrame = {
+  //    // generate expression
+  //    val genotypeState = (0 until ploidy).map(i => {
+  //      val c: Column = when(gtFrame("alleles").getItem(i) === "REF", 1).otherwise(0)
+  //      c
+  //    }).reduce(_ + _)
   //
-  //    val samples = genotype.map(gs => (gs.sampleId, gs.missingGenotypes, 2))
-  //      .keyBy(_._1)
-  //      .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3))
-  //      .map(keyed_tup => {
-  //        val (key, tuple) = keyed_tup
-  //        val (sampleId, missCount, total) = tuple
-  //        val mind = missCount.toDouble / total.toDouble
-  //        (sampleId, mind)
-  //      })
-  //      .filter(_._2 <= mindF.value)
-  //      .map(_._1)
-  //      .collect
-  //      .toSet
-  //    val samples_bc = sc.broadcast(samples)
-  //    val sampleFilteredRdd = genotype.filter(gs => samples_bc.value contains gs.sampleId)
+  //    val missingGenotypes = (0 until ploidy).map(i => {
+  //      val c: Column = when(gtFrame("alleles").getItem(i) === "NO_CALL", 1).otherwise(0)
+  //      c
+  //    }).reduce(_ + _)
   //
-  //    sampleFilteredRdd
+  //    // is this correct? or should we change the column to nullable?
+  //    val phaseSetId: Column = when(gtFrame("phaseSetId").isNull, 0).otherwise(gtFrame("phaseSetId"))
+  //
+  //    gtFrame.select(gtFrame("variant.contigName").as("contigName"),
+  //      gtFrame("variant.start").as("start"),
+  //      gtFrame("variant.end").as("end"),
+  //      gtFrame("variant.referenceAllele").as("ref"),
+  //      gtFrame("variant.alternateAllele").as("alt"),
+  //      gtFrame("sampleId"),
+  //      genotypeState.as("genotypeState"),
+  //      missingGenotypes.as("missingGenotypes"),
+  //      phaseSetId.as("phaseSetId"))
   //  }
+
+  //    def filterSamples(genotype: RDD[Genotype], mind: Option[Double]): RDD[Genotype] = {
+  //      val mindF = sc.broadcast(mind)
+  //
+  //      val samples = genotype.map(gs => (gs.sampleId, gs.missingGenotypes, 2))
+  //        .keyBy(_._1)
+  //        .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3))
+  //        .map(keyed_tup => {
+  //          val (key, tuple) = keyed_tup
+  //          val (sampleId, missCount, total) = tuple
+  //          val mind = missCount.toDouble / total.toDouble
+  //          (sampleId, mind)
+  //        })
+  //        .filter(_._2 <= mindF.value)
+  //        .map(_._1)
+  //        .collect
+  //        .toSet
+  //      val samples_bc = sc.broadcast(samples)
+  //      val sampleFilteredRdd = genotype.filter(gs => samples_bc.value contains gs.sampleId)
+  //
+  //      sampleFilteredRdd
+  //    }
+
+  def filterSamples(genotypes: Dataset[CalledVariant], mind: Double, ploidy: Double): Dataset[CalledVariant] = {
+    val sampleIds = genotypes.first.samples.map(x => x.sampleID)
+    val separated = genotypes.select($"uniqueID" +: sampleIds.indices.map(idx => $"samples"(idx) as sampleIds(idx)): _*)
+
+    val missingFn: String => Int = _.split("/|\\|").count(_ == ".")
+    val missingUDF = udf(missingFn)
+
+    val filtered = separated.select($"uniqueID" +: sampleIds.map(sampleId => missingUDF(separated(sampleId).getField("value")) as sampleId): _*)
+
+    val summed = filtered.drop("uniqueID").groupBy().sum().toDF(sampleIds: _*)
+    val count = filtered.count()
+
+    val missingness = summed.select(sampleIds.map(sampleId => summed(sampleId) / ploidy * count as sampleId): _*)
+    val plainMissingness = missingness.select(array(sampleIds.head, sampleIds.tail: _*)).as[Array[Double]].head
+
+    val samplesWithMissingness = sampleIds.zip(plainMissingness)
+    val keepers = samplesWithMissingness.filter(x => x._2 < mind).map(x => x._1)
+
+    val filteredDF = separated.select($"uniqueID", array(keepers.head, keepers.tail: _*)).toDF("uniqueID", "samples").as[(String, Array[String])]
+
+    genotypes.drop("samples").join(filteredDF, "uniqueID").as[CalledVariant]
+  }
 
   //  def filterVariants(genotypeStates: DataFrame, geno: Option[Double], maf: Option[Double]): DataFrame = {
   //    val genoF = sc.broadcast(geno)
@@ -165,7 +188,6 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
   def loadGenotypes(genotypesPath: String): Dataset[CalledVariant] = {
 
     // ToDo: Deal with multiple Alts
-
     val stringVariantDS = sparkSession.read.textFile(genotypesPath).filter(row => !row.startsWith("##"))
 
     val variantDF = sparkSession.read.format("csv")
@@ -181,7 +203,7 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
       .select($"ID", array(samples.head, samples.tail: _*))
       .as[(String, Array[String])]
     val typedGroupedSamples = groupedSamples
-      .map(row => (row._1, row._2.map(x => GenotypeState(x))))
+      .map(row => (row._1, samples.zip(row._2).map(x => GenotypeState(x._1, x._2))))
       .toDF("ID", "samples")
       .as[(String, Array[GenotypeState])]
 

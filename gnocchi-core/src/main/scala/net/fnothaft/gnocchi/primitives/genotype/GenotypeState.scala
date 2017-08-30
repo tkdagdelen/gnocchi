@@ -1,3 +1,4 @@
 package net.fnothaft.gnocchi.primitives.genotype
 
-case class GenotypeState(value: String) extends Product
+case class GenotypeState(sampleID: String,
+                         value: String) extends Product
