@@ -116,28 +116,6 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
   //      phaseSetId.as("phaseSetId"))
   //  }
 
-  //    def filterSamples(genotype: RDD[Genotype], mind: Option[Double]): RDD[Genotype] = {
-  //      val mindF = sc.broadcast(mind)
-  //
-  //      val samples = genotype.map(gs => (gs.sampleId, gs.missingGenotypes, 2))
-  //        .keyBy(_._1)
-  //        .reduceByKey((tup1, tup2) => (tup1._1, tup1._2 + tup2._2, tup1._3 + tup2._3))
-  //        .map(keyed_tup => {
-  //          val (key, tuple) = keyed_tup
-  //          val (sampleId, missCount, total) = tuple
-  //          val mind = missCount.toDouble / total.toDouble
-  //          (sampleId, mind)
-  //        })
-  //        .filter(_._2 <= mindF.value)
-  //        .map(_._1)
-  //        .collect
-  //        .toSet
-  //      val samples_bc = sc.broadcast(samples)
-  //      val sampleFilteredRdd = genotype.filter(gs => samples_bc.value contains gs.sampleId)
-  //
-  //      sampleFilteredRdd
-  //    }
-
   def filterSamples(genotypes: Dataset[CalledVariant], mind: Double, ploidy: Double): Dataset[CalledVariant] = {
     val sampleIds = genotypes.first.samples.map(x => x.sampleID)
     val separated = genotypes.select($"uniqueID" +: sampleIds.indices.map(idx => $"samples"(idx) as sampleIds(idx)): _*)
@@ -159,6 +137,16 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     val filteredDF = separated.select($"uniqueID", array(keepers.head, keepers.tail: _*)).toDF("uniqueID", "samples").as[(String, Array[String])]
 
     genotypes.drop("samples").join(filteredDF, "uniqueID").as[CalledVariant]
+  }
+
+  def filterVariants(genotypes: Dataset[CalledVariant], geno: Double, maf: Double): Dataset[CalledVariant] = {
+    def filtersDF = genotypes.map(x => (x.uniqueID, x.maf, x.geno)).toDF("uniqueID", "maf", "geno")
+    def mafFiltered = genotypes.join(filtersDF, "uniqueID")
+      .filter($"maf" >= maf && lit(1) - $"maf" >= maf && $"geno" <= geno)
+      .drop("maf", "geno")
+      .as[CalledVariant]
+
+    mafFiltered
   }
 
   //  def filterVariants(genotypeStates: DataFrame, geno: Option[Double], maf: Option[Double]): DataFrame = {
