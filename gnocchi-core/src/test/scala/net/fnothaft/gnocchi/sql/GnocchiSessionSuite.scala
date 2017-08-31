@@ -23,14 +23,17 @@ import net.fnothaft.gnocchi.algorithms.siteregression.{ AdditiveLinearRegression
 import net.fnothaft.gnocchi.primitives.genotype.{ Genotype, GenotypeState }
 import net.fnothaft.gnocchi.primitives.phenotype.Phenotype
 import net.fnothaft.gnocchi.primitives.variants.CalledVariant
+import org.apache.spark
 import org.apache.spark.sql.{ Dataset, SparkSession }
 
 class GnocchiSessionSuite extends GnocchiFunSuite {
 
   import GnocchiSession._
   val genoPath = testFile("5snpsFirst5samples.vcf")
+
   //#CHROM	POS	    ID	      REF	ALT	QUAL	FILTER	INFO	FORMAT	sample1	sample2	sample3	sample4	sample5
   //1	      752721	rs3131971	A	  G	  60	  PASS	  .	    GT	    0/0	    0/0	    0/0	    0/1	    1/0
+
   sparkTest("sc.loadGenotypes should produce a dataset of CalledVariant objects") {
     println(genoPath)
     import GnocchiSession._
@@ -38,7 +41,6 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     genotypes.show()
     assert(genotypes.isInstanceOf[Dataset[CalledVariant]], "LoadGenotypes should produce a" +
       " Dataset[CalledVariant]")
-
   }
 
   sparkTest("sc.loadGenotypes should map fields correctly") {
@@ -61,13 +63,12 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
   //sc.filterSamples should filter out samples with missing values above a given threshold
 
   private def makeGenotypeState(id: String, gs: String): GenotypeState = {
-    GenotypeState(id, gs)
+    new GenotypeState(id, gs)
   }
-
 
   private def makeCalledVariant(uid: Int, sampleIds: List[String], genotypeStates: List[String]): CalledVariant = {
     val samples = sampleIds.zip(genotypeStates).map(idGs => makeGenotypeState(idGs._1, idGs._2))
-    CalledVariant(1, 1234, uid.toString(), "A", "G", 60, "PASS", ".", "GT", samples)
+    new CalledVariant(1, 1234, uid.toString(), "A", "G", 60, "PASS", ".", "GT", samples)
   }
 
   val sampleIds = List("sample1", "sample2", "sample3", "sample4")
@@ -86,12 +87,12 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     "should never exceed 1.0") {
     val sparkSession = SparkSession.builder().getOrCreate()
     import sparkSession.implicits._
+    import net.fnothaft.gnocchi.sql.GnocchiSession
     val calledVariantsDS = sparkSession.createDataFrame(List(variant1CalledVariant, variant2CalledVariant,
       variant3CalledVariant, variant4CalledVariant, variant5CalledVariant)).as[CalledVariant]
     val filteredSamples = sc.filterSamples(calledVariantsDS, 1.0, 2)
-    filteredSamples.show()
-    calledVariantsDS.show()
-    assert(filteredSamples.collect.equals(calledVariantsDS.collect), "Sample filtering did not match original collection.")
+    val joinedRows = filteredSamples.join(calledVariantsDS, "uniqueID")
+    joinedRows.collect.foreach(g => assert(g(9) === g(18), "Filtered dataset did not match expected dataset."))
   }
 
   sparkTest("filterSamples should filter on mind if mind is greater than 0 but less than 1") {
@@ -113,9 +114,8 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     val targetvariant5CalledVariant = makeCalledVariant(5, targetFilteredSamples, targetvariant5Genotypes)
     val targetcalledVariantsDS = sparkSession.createDataFrame(List(targetvariant1CalledVariant, targetvariant2CalledVariant,
       targetvariant3CalledVariant, targetvariant4CalledVariant, targetvariant5CalledVariant)).as[CalledVariant]
-    filteredSamples.show()
-    targetcalledVariantsDS.show()
-    assert(filteredSamples === targetcalledVariantsDS, "Filtered dataset did not match expected dataset.")
+    val joinedRows = filteredSamples.join(targetcalledVariantsDS, "uniqueID")
+    joinedRows.collect.foreach(g => assert(g(9) === g(18), "Filtered dataset did not match expected dataset."))
   }
 
   sparkTest("filterSamples should filter out all non-perfect samples if mind == 0") {
@@ -137,9 +137,8 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
     val targetvariant5CalledVariant = makeCalledVariant(5, targetFilteredSamples, targetvariant5Genotypes)
     val targetcalledVariantsDS = sparkSession.createDataFrame(List(targetvariant1CalledVariant, targetvariant2CalledVariant,
       targetvariant3CalledVariant, targetvariant4CalledVariant, targetvariant5CalledVariant)).as[CalledVariant]
-    filteredSamples.show()
-    targetcalledVariantsDS.show()
-    assert(filteredSamples === targetcalledVariantsDS, "Filtered dataset did not match expected dataset.")
+    val joinedRows = filteredSamples.join(targetcalledVariantsDS, "uniqueID")
+    joinedRows.collect.foreach(g => assert(g(9) === g(18), "Filtered dataset did not match expected dataset."))
   }
 
   sparkTest("sc.filterVariants should filter out variants below MAF threshold") {
@@ -151,9 +150,9 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
       variant3CalledVariant, variant4CalledVariant, variant5CalledVariant)).as[CalledVariant]
     val filteredVariantsDS = sc.filterVariants(calledVariantsDS, genotypingRateThreshold, mafThreshold)
     // only one variant (variant3) should pass the filter
-    filteredVariantsDS.show
-    assert(filteredVariantsDS.collect.toList.equals(List(variant3CalledVariant)), "sc.filterVariants did not filter" +
-      "on MAF correctly")
+    val joinedRows = filteredVariantsDS.join(sparkSession.createDataFrame(List(variant3CalledVariant)), "uniqueID")
+    joinedRows.collect.foreach(v => assert(v(0) === v(10), "sc.filterVariants did not filter" +
+      "on MAF correctly"))
   }
 
   sparkTest("sc.filterVariants should filter out variants above genotyping rate threshold") {
@@ -165,9 +164,10 @@ class GnocchiSessionSuite extends GnocchiFunSuite {
       variant3CalledVariant, variant4CalledVariant, variant5CalledVariant)).as[CalledVariant]
     val filteredVariantsDS = sc.filterVariants(calledVariantsDS, genotypingRateThreshold, mafThreshold)
     // only variants 3, 4, and 5 should pass the filter
-    filteredVariantsDS.show()
-    assert(filteredVariantsDS.collect.toList.equals(List(variant3CalledVariant, variant4CalledVariant,
-      variant5CalledVariant)), "sc.filterVariants did not filter on genotyping rate correctly")
+    val joinedRows = filteredVariantsDS.join(sparkSession.createDataFrame(List(variant3CalledVariant, variant4CalledVariant,
+      variant5CalledVariant)), "uniqueID")
+    joinedRows.collect.foreach(v => assert(v(0) === v(10), "sc.filterVariants did not filter" +
+      "on MAF correctly"))
   }
 
   //  ignore("filterSamples should filter on mind if mind is greater than 0 but less than 1") {
