@@ -17,9 +17,11 @@
  */
 package org.bdgenomics.gnocchi.models.variant
 
+import breeze.linalg.{ DenseMatrix, DenseVector }
 import org.apache.commons.math3.distribution.TDistribution
 import org.bdgenomics.gnocchi.algorithms.siteregression.LinearSiteRegression
 import org.bdgenomics.gnocchi.primitives.association.LinearAssociation
+import org.bdgenomics.gnocchi.primitives.genotype.GenotypeState
 import org.bdgenomics.gnocchi.primitives.phenotype.Phenotype
 import org.bdgenomics.gnocchi.primitives.variants.CalledVariant
 
@@ -37,6 +39,34 @@ case class LinearVariantModel(uniqueID: String,
 
   val modelType: String = "Linear Variant Model"
   val regressionName = "Linear Regression"
+
+  /**
+   * Given an individual's genotype state and covariates predict the primary phenotype value.
+   *
+   * @param genotype the genotype state of the individual being predicted
+   * @param covariates the covariates, a [[List<Double>]] that contain the covariates.
+   * @return the prediction for the particular individual
+   */
+  def predict(genotype: GenotypeState, covariates: List[Double]): Double = {
+    val weights = DenseVector(association.weights: _*)
+    val predictors = DenseVector(1.0 :: genotype.alts.toDouble :: covariates: _*)
+    predictors dot weights
+  }
+
+  /**
+   * Given an individual's genotype state and covariates predict the primary phenotype value.
+   *
+   * @param genotypes the genotype state of the individual being predicted
+   * @param covariates the covariates, a [[List<Double>]] that contain the covariates.
+   * @return the prediction for the particular individual
+   */
+  def predict(genotypes: CalledVariant, covariates: Map[String, List[Double]]): List[Double] = {
+    val genotypeStates = genotypes.samples.map(x => (x.sampleID, x.alts.toDouble))
+    val predictorsMatrix = DenseMatrix(genotypeStates.map { case (id, geno) => 1.0 :: geno :: covariates(id) }: _*)
+
+    val weights = DenseVector(association.weights: _*)
+    (predictorsMatrix * weights).toArray.toList
+  }
 
   def update(genotypes: CalledVariant, phenotypes: Map[String, Phenotype]): LinearVariantModel = {
     val batchVariantModel = constructUpdatedVariantModel(uniqueID, applyToSite(phenotypes, genotypes, allelicAssumption))
