@@ -105,7 +105,7 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
   }
 
   /**
-   * Split the genotyping data into two datasets based off of present phenotypes 
+   * Split the genotyping data into two datasets based off of present phenotypes
    *
    * @param genotypes
    * @param phenotypes
