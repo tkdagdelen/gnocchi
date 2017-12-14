@@ -128,27 +128,4 @@ case class LinearGnocchiModel(metaData: GnocchiModelMetaData,
           x._1.alternateAllele,
           x._1.samples ++ x._2.samples))
   }
-
-  def predict(genotypes: Dataset[CalledVariant], covariates: Map[String, List[Double]]): Array[(String, Double)] = {
-    val weights = variantModels.rdd.map(f => {
-      (f.uniqueID, DenseVector(f.association.weights: _*))
-    })
-
-    val genoStates = genotypes.rdd.map(f => {
-      (f.uniqueID, DenseMatrix(f.samples.map(g => { 1.0 :: g.alts.toDouble :: covariates(g.sampleID) }): _*))
-    })
-
-    val sampleIDs = genotypes.head.samples.map(g => g.sampleID)
-
-    val y_hat = weights.join(genoStates).flatMap(f => {
-      sampleIDs.zip((f._2._2 * f._2._1).toArray)
-    }).mapValues(x => (x, 1))
-
-    y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)).mapValues(y => 1.0 * y._1 / y._2).collect
-  }
-
-  //  def ensemble(genotypes: Dataset[CalledVariant], covariates: Map[String, List[Double]]): List[(String, Double)] = {
-  //    val matrix = predict(genotypes, covariates)
-  //
-  //  }
 }

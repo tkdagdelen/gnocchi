@@ -48,6 +48,10 @@ trait LogisticSiteRegression extends SiteRegression[LogisticVariantModel, Logist
           logError(e.toString)
           None
         }
+        case e: org.apache.commons.math3.exception.ConvergenceException => {
+          logError(e.toString)
+          None
+        }
       }
     })
   }

@@ -25,7 +25,11 @@ import org.apache.spark.sql.Dataset
 import java.io.FileOutputStream
 import java.io.ObjectOutputStream
 
+import breeze.linalg.{ DenseMatrix, DenseVector }
 import org.apache.hadoop.fs.Path
+import org.bdgenomics.gnocchi.primitives.variants.CalledVariant
+
+import scala.collection.immutable.Map
 
 case class GnocchiModelMetaData(modelType: String,
                                 phenotype: String,
@@ -189,5 +193,23 @@ trait GnocchiModel[VM <: VariantModel[VM], GM <: GnocchiModel[VM, GM]] {
 
     metaData_oos.writeObject(metaData)
     metaData_oos.close
+  }
+
+  def predict(genotypes: Dataset[CalledVariant], covariates: Map[String, List[Double]]): Array[(String, Double)] = {
+    val weights = variantModels.rdd.map(f => {
+      (f.uniqueID, DenseVector(f.association.weights: _*))
+    })
+
+    val genoStates = genotypes.rdd.map(f => {
+      (f.uniqueID, DenseMatrix(f.samples.map(g => { 1.0 :: g.alts.toDouble :: covariates(g.sampleID) }): _*))
+    })
+
+    val sampleIDs = genotypes.head.samples.map(g => g.sampleID)
+
+    val y_hat = weights.join(genoStates).flatMap(f => {
+      sampleIDs.zip((f._2._2 * f._2._1).toArray)
+    }).mapValues(x => (x, 1))
+
+    y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)).mapValues(y => 1.0 * y._1 / y._2).collect
   }
 }

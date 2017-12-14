@@ -104,6 +104,10 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     }).as[CalledVariant]
   }
 
+  def trainAndTestPartition(genotypes: Dataset[CalledVariant], phenotypes: Map[String, Phenotype], trainPath: String, testPath: String) = {
+
+  }
+
   /**
    * Returns a filtered Dataset of CalledVariant objects, where all variants with
    * values less than the specified geno or maf threshold are filtered out.

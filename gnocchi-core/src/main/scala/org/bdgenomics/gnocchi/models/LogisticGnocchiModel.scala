@@ -17,12 +17,15 @@
  */
 package org.bdgenomics.gnocchi.models
 
+import breeze.linalg.{ DenseMatrix, DenseVector }
 import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.sql.{ Dataset, SparkSession }
 import org.bdgenomics.gnocchi.algorithms.siteregression.LogisticSiteRegression
 import org.bdgenomics.gnocchi.models.variant.{ LogisticVariantModel, QualityControlVariantModel }
 import org.bdgenomics.gnocchi.primitives.phenotype.Phenotype
 import org.bdgenomics.gnocchi.primitives.variants.CalledVariant
+
+import scala.collection.immutable.Map
 
 object LogisticGnocchiModelFactory {
 
