@@ -104,8 +104,46 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
     }).as[CalledVariant]
   }
 
-  def trainAndTestPartition(genotypes: Dataset[CalledVariant], phenotypes: Map[String, Phenotype], trainPath: String, testPath: String) = {
+  /**
+   * Split the genotyping data into two datasets based off of present phenotypes 
+   *
+   * @param genotypes
+   * @param phenotypes
+   * @param trainPath
+   * @param testPath
+   * @param percentTest
+   */
+  def trainAndTestPartition(genotypes: Dataset[CalledVariant],
+                            phenotypes: Map[String, Phenotype],
+                            trainPath: String,
+                            testPath: String,
+                            percentTest: Double = 0.1) = {
 
+    val numTest = math.round(phenotypes.size * percentTest).toInt
+
+    val trainIDs = phenotypes.keys.take(phenotypes.size - numTest)
+    val testIDs = phenotypes.keys.takeRight(numTest)
+
+    val test = genotypes.map(f => {
+      CalledVariant(f.chromosome,
+        f.position,
+        f.uniqueID,
+        f.referenceAllele,
+        f.alternateAllele,
+        f.samples.filter(g => testIDs.contains(g.sampleID)))
+    }).as[CalledVariant]
+
+    val train = genotypes.map(f => {
+      CalledVariant(f.chromosome,
+        f.position,
+        f.uniqueID,
+        f.referenceAllele,
+        f.alternateAllele,
+        f.samples.filter(g => trainIDs.contains(g.sampleID)))
+    }).as[CalledVariant]
+
+    test.write.parquet(testPath+"/parquet")
+    train.write.parquet(trainPath+"/parquet")
   }
 
   /**

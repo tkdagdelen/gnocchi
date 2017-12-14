@@ -132,7 +132,8 @@ class BuildGnocchiModel(protected val args: BuildGnocchiModelArgs) extends BDGSp
     val broadPhenotype = sc.broadcast(phenotypes)
 
     val rawGenotypes = sc.loadGenotypes(args.genotypes, parquet = args.parquetInput)
-    val sampleFiltered = sc.filterSamples(rawGenotypes, mind = args.mind, ploidy = args.ploidy)
+    val recoded = sc.recodeMajorAllele(rawGenotypes)
+    val sampleFiltered = sc.filterSamples(recoded, mind = args.mind, ploidy = args.ploidy)
     val filteredGeno = sc.filterVariants(sampleFiltered, geno = args.geno, maf = args.maf)
 
     val phenotypeNames = if (args.covarFile != null) args.phenoName :: args.covarNames.split(",").toList else List(args.phenoName)
