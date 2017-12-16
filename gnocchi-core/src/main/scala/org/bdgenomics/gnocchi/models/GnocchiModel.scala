@@ -195,7 +195,8 @@ trait GnocchiModel[VM <: VariantModel[VM], GM <: GnocchiModel[VM, GM]] {
     metaData_oos.close
   }
 
-  def predict(genotypes: Dataset[CalledVariant], covariates: Map[String, List[Double]]): Array[(String, Double)] = {
+  def predict(genotypes: Dataset[CalledVariant], covariates: Map[String, List[Double]],
+              ensembleType: String = "SimpleAverage"): Array[(String, Double)] = {
     // broadcast this
     val covarMat = covariates.map(f => {
       (f._1, DenseVector(f._2: _*).t)
@@ -215,12 +216,15 @@ trait GnocchiModel[VM <: VariantModel[VM], GM <: GnocchiModel[VM, GM]] {
       (f._1._2, f._2._1 * f._2._2._1 + f._2._2._2)
     }).mapValues(x => (x, 1))
 
-    // ensemble function (in this case just a simple average across all variants
-//    y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)) //sum the predictions from each variant
-//      .mapValues(y => 1.0 * y._1 / y._2).collect //divide sum of predictions by number of variants
-
-    // ensemble function (in this case confident predictions are upweighted using a quadratic)
-      y_hat.reduceByKey((x,y) => ((x._1 - 0.5) * math.abs(x._1 - 0.5) + (y._1 - 0.5) * math.abs(y._1 - 0.5), x._2 + y._2))
-        .mapValues (y => 1.0 * y._1 / y._2).collect
+    ensembleType match {
+      case "SimpleAverage" =>
+        // ensemble function (in this case just a simple average across all variants
+        y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)) //sum the predictions from each variant
+          .mapValues(y => 1.0 * y._1 / y._2).collect //divide sum of predictions by number of variants
+      case "QuadraticWeighting" =>
+        // ensemble function (in this case confident predictions are upweighted using a quadratic)
+        y_hat.reduceByKey((x, y) => ((x._1 - 0.5) * math.abs(x._1 - 0.5) + (y._1 - 0.5) * math.abs(y._1 - 0.5), x._2 + y._2))
+          .mapValues(y => 1.0 * y._1 / y._2).collect
+    }
   }
 }
