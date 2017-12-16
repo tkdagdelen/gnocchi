@@ -142,8 +142,8 @@ class GnocchiSession(@transient val sc: SparkContext) extends Serializable with 
         f.samples.filter(g => trainIDs.contains(g.sampleID)))
     }).as[CalledVariant]
 
-    test.write.parquet(testPath+"/parquet")
-    train.write.parquet(trainPath+"/parquet")
+    test.write.parquet(testPath + "/parquet")
+    train.write.parquet(trainPath + "/parquet")
   }
 
   /**

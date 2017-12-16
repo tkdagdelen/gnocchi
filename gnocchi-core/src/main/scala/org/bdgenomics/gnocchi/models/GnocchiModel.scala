@@ -210,10 +210,17 @@ trait GnocchiModel[VM <: VariantModel[VM], GM <: GnocchiModel[VM, GM]] {
 
     val genotypes_2 = genotypes.rdd.flatMap(f => f.samples.map(g => ((f.uniqueID, g.sampleID), g.alts.toDouble)))
 
+    // compute y_hat prediction for each variant
     val y_hat = genotypes_2.join(covarVals).map(f => {
       (f._1._2, f._2._1 * f._2._2._1 + f._2._2._2)
     }).mapValues(x => (x, 1))
 
-    y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)).mapValues(y => 1.0 * y._1 / y._2).collect
+    // ensemble function (in this case just a simple average across all variants
+//    y_hat.reduceByKey((x, y) => (x._1 + y._1, x._2 + y._2)) //sum the predictions from each variant
+//      .mapValues(y => 1.0 * y._1 / y._2).collect //divide sum of predictions by number of variants
+
+    // ensemble function (in this case confident predictions are upweighted using a quadratic)
+      y_hat.reduceByKey((x,y) => ((x._1 - 0.5) * math.abs(x._1 - 0.5) + (y._1 - 0.5) * math.abs(y._1 - 0.5), x._2 + y._2))
+        .mapValues (y => 1.0 * y._1 / y._2).collect
   }
 }
