@@ -65,7 +65,7 @@ GNOCCHI_CLI_JAR=
 if [ -d "$INSTALL_DIR/repo" ]; then
   ASSEMBLY_DIR="$INSTALL_DIR/repo"
 else
-  ASSEMBLY_DIR="$INSTALL_DIR/gnocchi-cli/target"
+  ASSEMBLY_DIR="$INSTALL_DIR/gnocchi-assembly/target"
 fi
 
 num_jars="$(ls -1 "$ASSEMBLY_DIR" | grep "^gnocchi[0-9A-Za-z\.\_\-]*\.jar$" | grep -v javadoc | grep -v sources | wc -l)"
@@ -87,7 +87,7 @@ GNOCCHI_CLI_JAR="${ASSEMBLY_DIR}/${ASSEMBLY_JARS}"
 
 # Allow main class to be overridden
 if [ -z "$GNOCCHI_MAIN" ]; then
-  GNOCCHI_MAIN="net.fnothaft.gnocchi.cli.GnocchiMain"
+  GNOCCHI_MAIN="org.bdgenomics.gnocchi.cli.GnocchiMain"
 fi
 echo "Using GNOCCHI_MAIN=$GNOCCHI_MAIN"
 
@@ -111,3 +111,5 @@ echo "Using SPARK_SUBMIT=$SPARK_SUBMIT"
   "${SPARK_ARGS[@]}" \
   "$GNOCCHI_CLI_JAR" \
   "${GNOCCHI_ARGS[@]}"
+
+echo "Finished submitting to Gnocchi."

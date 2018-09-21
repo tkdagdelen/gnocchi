@@ -5,6 +5,22 @@
 Statistical associations using the [ADAM](https://github.com/bigdatagenomics/adam) genomics analysis platform.
 The currently supported operations are Genome Wide Association using Linear and Logistic models with either Dominant or Additive assumptions.
 
+# Distributed Model Building for Linear Genomic Models
+
+Gnocchi allows for the building of a single linear genomic model over multiple distinct datasets that reside in separate locations.
+Gnocchi addresses the use case of multiple collaborators having genomic datasets that are too large to transport
+efficiently.
+
+When using gnocchi, it is not necessary to move all datasets into a single datacenter. Gnocchi can incrementally build
+partial models that can be merged into a single model that is equivalent to one built over a union of all datasets used
+in the model merging process. This result is achieved through storage of relevant sufficient statistics which allow for
+partial models to be composed at a later time.
+
+The benefits of this approach are that a set of collaborators can each contribute equal share of compute power to their
+portion of an analysis and efficiently communicate the results with other collaborators. It also allows for more effective
+checkpointing of expensive computation associated with genomic models. Instead of recomputing an entire association a
+researcher can now incrementally add additional data to a previously built model.
+
 # Build
 
 To build, install [Maven](http://maven.apache.org). Then (once in the gnocchi directory) run:
@@ -38,12 +54,12 @@ You can then run `gnocchi` via `gnocchi-submit`, or open a shell using `gnocchi-
 Test data is included. You can run with the test data by running:
 
 ```
-gnocchi-submit regressPhenotypes testData/5snps10samples.vcf testData/10samples5Phenotypes2covars.txt ADDITIVE_LINEAR testData/associations -saveAsText -phenoName pheno1 -covar -covarFile testData/10samples5Phenotypes2covars.txt -covarNames pheno4,pheno5
+gnocchi-submit regressPhenotypes examples/testData/5snps10samples.vcf examples/testData/10samples5Phenotypes2covars.txt ADDITIVE_LINEAR ../associations -saveAsText -phenoName pheno1 -covar -covarFile examples/testData/10samples5Phenotypes2covars.txt -covarNames pheno4,pheno5 -sampleIDName SampleID
 ```
 
 ## Phenotype Input
 
-Format phenotypes in a CSV. Both comma and tabs are accepted as delimiters.
+Format your phenotypes files as CSV or tab-delimited text, and include a header. 
 
 ```
 SampleID    pheno1    pheno2
